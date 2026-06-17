@@ -38,6 +38,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WalletScreen(viewModel: DashboardViewModel) {
+    // Penggunaan collectAsState wajib diimport secara benar biar nggak error delegate
     val accounts by viewModel.accountList.collectAsState(initial = emptyList())
     val transactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val isVisible by viewModel.isBalanceVisible.collectAsState()
@@ -49,7 +50,7 @@ fun WalletScreen(viewModel: DashboardViewModel) {
     var inputType by remember { mutableStateOf("REGULAR") }
     var inputInclude by remember { mutableStateOf(true) }
 
-    val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
+    val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     fun formatRp(amount: Double) = if (isVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
 
     var totalAssets = 0.0
@@ -69,7 +70,8 @@ fun WalletScreen(viewModel: DashboardViewModel) {
     }
     val netWorth = totalAssets + totalLiabilities
 
-    val mutableAccounts = remember(accounts) { accounts.toMutableStateList() }
+    // Konversi state accounts menjadi list yang bisa dimodifikasi untuk drag-and-drop
+    val mutableAccounts = remember(accounts) { accounts.toMutableList() }
 
     if (showDialog) {
         Dialog(onDismissRequest = { showDialog = false }) {
@@ -205,7 +207,6 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                                         change.consume()
                                         accumulatedDragY += dragAmount.y
 
-                                        // Ambang batas geser ~120 pixel per kartu
                                         if (accumulatedDragY > 120f && dragFromIndex < mutableAccounts.size - 1) {
                                             val targetIndex = dragFromIndex + 1
                                             val item = mutableAccounts.removeAt(dragFromIndex)
@@ -263,7 +264,7 @@ class RupiahVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
         if (text.text.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
         val formattedText = try {
-            val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
+            val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
             format.format(text.text.toLong())
         } catch (e: Exception) { text.text }
 

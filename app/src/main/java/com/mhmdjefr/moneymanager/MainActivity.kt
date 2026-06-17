@@ -30,6 +30,7 @@ import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModelFactory
 import com.mhmdjefr.moneymanager.ui.settings.SettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.CategorySettingsScreen
+import com.mhmdjefr.moneymanager.ui.settings.*
 import com.mhmdjefr.moneymanager.ui.statistic.StatisticScreen
 import com.mhmdjefr.moneymanager.ui.theme.*
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionScreen
@@ -120,11 +121,17 @@ class MainActivity : ComponentActivity() {
                         composable("wallet") { WalletScreen(viewModel = dashboardViewModel) }
                         composable("statistic") { StatisticScreen(viewModel = dashboardViewModel) }
                         composable("settings") {
-                            SettingsScreen(onNavigateToCategories = { navController.navigate("manage_categories") })
+                            SettingsScreen(
+                                viewModel = dashboardViewModel,
+                                onNavigate = { route -> navController.navigate(route) }
+                            )
                         }
                         composable("manage_categories") {
                             CategorySettingsScreen(viewModel = dashboardViewModel, onBackClick = { navController.popBackStack() })
                         }
+                        composable("profile") { ProfileScreen(onBackClick = { navController.popBackStack() }) }
+                        composable("privacy") { PrivacyScreen(onBackClick = { navController.popBackStack() }) }
+                        composable("about") { AboutScreen(onBackClick = { navController.popBackStack() }) }
                     }
                 }
             }

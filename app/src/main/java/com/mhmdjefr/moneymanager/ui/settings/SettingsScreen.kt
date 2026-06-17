@@ -1,5 +1,8 @@
 package com.mhmdjefr.moneymanager.ui.settings
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -13,14 +16,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
 import com.mhmdjefr.moneymanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(onNavigateToCategories: () -> Unit) {
+fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) {
+    val context = LocalContext.current
+
+    // Launcher untuk mengekspor (Membuat file baru)
+    val exportLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/comma-separated-values")
+    ) { uri ->
+        uri?.let {
+            viewModel.exportToCsv(context, it,
+                onSuccess = { Toast.makeText(context, "Data successfully exported!", Toast.LENGTH_SHORT).show() },
+                onError = { Toast.makeText(context, "Export failed!", Toast.LENGTH_SHORT).show() }
+            )
+        }
+    }
+
+    // Launcher untuk mengimpor (Membuka file lama)
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        uri?.let {
+            viewModel.importFromCsv(context, it,
+                onSuccess = { Toast.makeText(context, "Data successfully imported!", Toast.LENGTH_SHORT).show() },
+                onError = { Toast.makeText(context, "Import failed! Check format.", Toast.LENGTH_SHORT).show() }
+            )
+        }
+    }
+
     Scaffold(
         containerColor = LightBackground
     ) { paddingValues ->
@@ -41,11 +72,7 @@ fun SettingsScreen(onNavigateToCategories: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = CardWhite),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column {
-                    SettingItem(icon = Icons.Default.Category, title = "Manage Categories", onClick = onNavigateToCategories)
-                    HorizontalDivider(color = LightBackground)
-                    SettingItem(icon = Icons.Default.AccountBalanceWallet, title = "My Wallets", onClick = { /* Biarkan kosong sementara */ })
-                }
+                SettingItem(icon = Icons.Default.Category, title = "Manage Categories", onClick = { onNavigate("manage_categories") })
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -59,13 +86,36 @@ fun SettingsScreen(onNavigateToCategories: () -> Unit) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column {
-                    SettingItem(icon = Icons.Default.Person, title = "My Profile", onClick = {})
+                    SettingItem(icon = Icons.Default.Person, title = "My Profile", onClick = { onNavigate("profile") })
                     HorizontalDivider(color = LightBackground)
-                    SettingItem(icon = Icons.Default.Notifications, title = "Notifications", onClick = {})
+                    SettingItem(icon = Icons.Default.Lock, title = "Privacy", onClick = { onNavigate("privacy") })
                     HorizontalDivider(color = LightBackground)
-                    SettingItem(icon = Icons.Default.Lock, title = "Privacy", onClick = {})
+                    SettingItem(icon = Icons.Default.Info, title = "About", onClick = { onNavigate("about") })
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // --- SECTION BARU: DATA MANAGEMENT ---
+            Text("Data Management", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CardWhite),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column {
+                    SettingItem(
+                        icon = Icons.Default.UploadFile,
+                        title = "Export to CSV (Backup)",
+                        onClick = { exportLauncher.launch("money_manager_backup.csv") }
+                    )
                     HorizontalDivider(color = LightBackground)
-                    SettingItem(icon = Icons.Default.Info, title = "About", onClick = {})
+                    SettingItem(
+                        icon = Icons.Default.DownloadForOffline,
+                        title = "Import from CSV (Restore)",
+                        onClick = { importLauncher.launch(arrayOf("text/comma-separated-values", "text/csv")) }
+                    )
                 }
             }
         }

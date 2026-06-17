@@ -24,7 +24,6 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-// Helper function biar icon dinamis sesuai nama category
 fun getCategoryIcon(iconName: String): ImageVector {
     return when (iconName) {
         "Work" -> Icons.Default.Work
@@ -46,13 +45,18 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     val totalBalance by viewModel.totalBalance.collectAsState(initial = 0.0)
     val monthlyTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
 
+    // Ambil state search dari ViewModel
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val filteredTransactions by viewModel.filteredMonthlyTransactions.collectAsState(initial = emptyList())
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val sharedPrefs = remember { context.getSharedPreferences("money_prefs", android.content.Context.MODE_PRIVATE) }
+    val userName = sharedPrefs.getString("user_name", "Jeffri") ?: "Jeffri"
+    val userAvatar = sharedPrefs.getString("user_avatar", "Person") ?: "Person"
     val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
-
-    // Warna hijau konsisten buat Income
     val incomeColor = Color(0xFF5ED5A8)
 
-    // Fungsi format ini SEKARANG CUMA DIPAKAI BUAT TOTAL BALANCE
     fun formatRp(amount: Double) = if (isBalanceVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
 
     val monthlyIncome = monthlyTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
@@ -68,6 +72,28 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                 .padding(horizontal = 24.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
+
+            // Profil Greeting
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(44.dp).clip(CircleShape).background(SoftBlue.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // Berubah jadi dinamis manggil icon avatar hewan pilihan lo
+                    Icon(
+                        imageVector = com.mhmdjefr.moneymanager.ui.settings.getAvatarIcon(userAvatar),
+                        contentDescription = null,
+                        tint = SoftBlue
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text("Welcome back,", color = TextSecondary, fontSize = 12.sp)
+                    Text(userName, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Header - Total Balance
             Row(
@@ -88,7 +114,36 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Summary Cards
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = incomeColor)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Income", color = Color.White, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Rp ${format.format(monthlyIncome)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ExpenseRed)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Expense", color = Color.White, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Rp ${format.format(monthlyExpense)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             // Month Navigator
             Row(
@@ -103,50 +158,45 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Summary Cards (Income & Expense)
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = incomeColor)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Income", color = Color.White, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // Nggak pakai formatRp lagi, langsung tembak angka aslinya
-                        Text("Rp ${format.format(monthlyIncome)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            // SEARCH BAR ELEGAN
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { viewModel.setSearchQuery(it) },
+                placeholder = { Text("Search transactions...", color = TextSecondary, fontSize = 14.sp) },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = TextSecondary) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { viewModel.setSearchQuery("") }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Clear", tint = TextSecondary)
+                        }
                     }
-                }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = CardWhite,
+                    unfocusedContainerColor = CardWhite,
+                    focusedBorderColor = Color.Transparent,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                singleLine = true
+            )
 
-                Card(
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = ExpenseRed)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Expense", color = Color.White, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        // Nggak pakai formatRp lagi, langsung tembak angka aslinya
-                        Text("Rp ${format.format(monthlyExpense)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
             Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Transactions List
-            if (monthlyTransactions.isEmpty()) {
+            if (filteredTransactions.isEmpty()) {
                 Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("No transactions this month.", color = TextSecondary)
+                    Text(if (searchQuery.isEmpty()) "No transactions this month." else "No transactions found.", color = TextSecondary)
                 }
             } else {
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    items(monthlyTransactions.sortedByDescending { it.date }) { tx ->
+                    items(filteredTransactions.sortedByDescending { it.date }) { tx ->
                         val isIncome = tx.type == "INCOME"
                         val isTransfer = tx.type == "TRANSFER"
 
