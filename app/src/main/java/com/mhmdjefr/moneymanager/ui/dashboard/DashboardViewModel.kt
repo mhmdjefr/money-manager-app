@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.mhmdjefr.moneymanager.data.local.AccountEntity
 import com.mhmdjefr.moneymanager.data.local.TransactionEntity
 import com.mhmdjefr.moneymanager.data.repository.MoneyRepository
+import com.mhmdjefr.moneymanager.data.local.CategoryEntity
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -86,6 +87,19 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     repository.insertAccount(account.copy(orderIndex = index))
                 }
             }
+        }
+    }
+    val allCategories: Flow<List<CategoryEntity>> = repository.getAllCategories()
+
+    fun saveCategory(name: String, type: String, iconName: String) {
+        viewModelScope.launch {
+            repository.insertCategory(CategoryEntity(name = name, type = type, iconName = iconName))
+        }
+    }
+
+    fun deleteCategory(category: CategoryEntity) {
+        viewModelScope.launch {
+            repository.deleteCategory(category)
         }
     }
 }

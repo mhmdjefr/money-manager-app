@@ -8,10 +8,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
-import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,131 +23,178 @@ import com.mhmdjefr.moneymanager.ui.theme.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
-import androidx.compose.material.icons.filled.*
 
+// Helper function biar icon dinamis sesuai nama category
+fun getCategoryIcon(iconName: String): ImageVector {
+    return when (iconName) {
+        "Work" -> Icons.Default.Work
+        "CardGiftcard" -> Icons.Default.CardGiftcard
+        "TrendingUp" -> Icons.Default.TrendingUp
+        "Fastfood" -> Icons.Default.Fastfood
+        "DirectionsCar" -> Icons.Default.DirectionsCar
+        "ShoppingCart" -> Icons.Default.ShoppingCart
+        "Receipt" -> Icons.Default.Receipt
+        else -> Icons.Default.Category
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Unit) {
+    val currentMonth by viewModel.currentMonth.collectAsState()
+    val isBalanceVisible by viewModel.isBalanceVisible.collectAsState()
     val totalBalance by viewModel.totalBalance.collectAsState(initial = 0.0)
     val monthlyTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
-    val currentMonth by viewModel.currentMonth.collectAsState()
-    val isVisible by viewModel.isBalanceVisible.collectAsState()
 
     val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
-    fun formatRpHidden(amount: Double) = if (isVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
-    fun formatRp(amount: Double) = "Rp ${format.format(amount)}"
-
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
 
-    val totalIncome = monthlyTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val totalExpense = monthlyTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    // Warna hijau konsisten buat Income
+    val incomeColor = Color(0xFF5ED5A8)
 
-    Scaffold(containerColor = LightBackground) { paddingValues ->
-        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp)) {
+    // Fungsi format ini SEKARANG CUMA DIPAKAI BUAT TOTAL BALANCE
+    fun formatRp(amount: Double) = if (isBalanceVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("Dashboard", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            }
+    val monthlyIncome = monthlyTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+    val monthlyExpense = monthlyTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
 
-            Spacer(modifier = Modifier.height(24.dp))
+    Scaffold(
+        containerColor = LightBackground
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(horizontal = 24.dp)
+        ) {
+            Spacer(modifier = Modifier.height(16.dp))
 
-            Text("Total Balance", color = TextSecondary, fontSize = 14.sp)
+            // Header - Total Balance
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(formatRpHidden(totalBalance), color = TextPrimary, fontSize = 36.sp, fontWeight = FontWeight.Bold)
+                Column {
+                    Text("Total Balance", color = TextSecondary, fontSize = 14.sp)
+                    Text(formatRp(totalBalance), color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                }
                 IconButton(onClick = { viewModel.toggleBalanceVisibility() }) {
-                    Icon(if (isVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, contentDescription = "Toggle Visibility", tint = TextSecondary)
+                    Icon(
+                        imageVector = if (isBalanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = "Toggle Balance",
+                        tint = TextSecondary
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = { viewModel.previousMonth() }) { Icon(Icons.Default.ArrowBack, contentDescription = "Previous") }
+            // Month Navigator
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { viewModel.previousMonth() }) { Icon(Icons.Default.ArrowBack, contentDescription = "Prev") }
                 Text(text = monthFormat.format(currentMonth.time), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 IconButton(onClick = { viewModel.nextMonth() }) { Icon(Icons.Default.ArrowForward, contentDescription = "Next") }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Summary Cards (Income & Expense)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF5ED5A8))) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = incomeColor)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Income", color = Color.White, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(formatRp(totalIncome), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Nggak pakai formatRp lagi, langsung tembak angka aslinya
+                        Text("Rp ${format.format(monthlyIncome)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
-                Card(modifier = Modifier.weight(1f), shape = RoundedCornerShape(16.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF26868))) {
+
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = ExpenseRed)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Expense", color = Color.White, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(formatRp(totalExpense), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Nggak pakai formatRp lagi, langsung tembak angka aslinya
+                        Text("Rp ${format.format(monthlyExpense)}", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(modifier = Modifier.height(16.dp))
 
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(monthlyTransactions) { transaction ->
-                    val isIncome = transaction.type == "INCOME"
-                    val isTransfer = transaction.type == "TRANSFER"
-                    val amountColor = when {
-                        isIncome -> SoftBlue
-                        isTransfer -> TextSecondary
-                        else -> ExpenseRed
-                    }
-                    val amountPrefix = when {
-                        isIncome -> "+"
-                        isTransfer -> ""
-                        else -> "-"
-                    }
+            // Transactions List
+            if (monthlyTransactions.isEmpty()) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No transactions this month.", color = TextSecondary)
+                }
+            } else {
+                LazyColumn(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    items(monthlyTransactions.sortedByDescending { it.date }) { tx ->
+                        val isIncome = tx.type == "INCOME"
+                        val isTransfer = tx.type == "TRANSFER"
 
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable { onNavigateToEdit(transaction.id) },
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardWhite)
-                    ) {
-                        Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.size(48.dp).clip(CircleShape).background(amountColor.copy(alpha = 0.1f)),
-                                contentAlignment = Alignment.Center
+                        val txColor = if (isIncome) incomeColor else if (isTransfer) TextSecondary else ExpenseRed
+                        val sign = if (isIncome) "+" else if (isTransfer) "" else "-"
+
+                        val categoryName = if (isTransfer) "Transfer" else tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotEmpty() } ?: "Others"
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onNavigateToEdit(tx.id) },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = CardWhite)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                val iconName = if (isTransfer) "Transfer" else transaction.note?.substringBefore("]")?.replace("[", "") ?: "Others"
-                                Icon(getCategoryIcon(iconName), contentDescription = null, tint = amountColor)
-                            }
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                val title = if (isTransfer) "Transfer" else transaction.note?.substringBefore("]")?.replace("[", "") ?: "Unknown"
-                                val subtitle = if (isTransfer) transaction.note ?: "" else transaction.note?.substringAfter("]")?.trim() ?: ""
-
-                                Text(title, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                if (subtitle.isNotEmpty()) {
-                                    Text(subtitle, color = TextSecondary, fontSize = 12.sp, maxLines = 1)
+                                Box(
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(txColor.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(if (isTransfer) Icons.Default.SyncAlt else getCategoryIcon(categoryName), contentDescription = null, tint = txColor)
                                 }
+                                Spacer(modifier = Modifier.width(16.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(categoryName, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    if (!tx.note.isNullOrBlank() && !isTransfer) {
+                                        val realNote = tx.note.substringAfter("]").trim()
+                                        if (realNote.isNotEmpty()) {
+                                            Text(realNote, color = TextSecondary, fontSize = 12.sp, maxLines = 1)
+                                        }
+                                    } else if (isTransfer) {
+                                        Text(tx.note ?: "", color = TextSecondary, fontSize = 12.sp, maxLines = 1)
+                                    }
+                                }
+                                Text(
+                                    text = "$sign Rp ${format.format(tx.amount)}",
+                                    color = txColor,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
-                            Text("$amountPrefix Rp ${format.format(transaction.amount)}", color = amountColor, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
         }
-    }
-}
-
-fun getCategoryIcon(categoryName: String): ImageVector {
-    return when (categoryName) {
-        "Salary" -> Icons.Default.Work
-        "Food" -> Icons.Default.Fastfood
-        "Transport" -> Icons.Default.DirectionsCar
-        "Shopping" -> Icons.Default.ShoppingCart
-        "Bills" -> Icons.Default.Receipt
-        "Transfer" -> Icons.Default.SwapHoriz
-        else -> Icons.Default.AttachMoney
     }
 }

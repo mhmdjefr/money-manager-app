@@ -3,6 +3,9 @@ package com.mhmdjefr.moneymanager.ui.transaction
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -13,299 +16,282 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.OffsetMapping
-import androidx.compose.ui.text.input.TransformedText
-import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.mhmdjefr.moneymanager.data.local.AccountEntity
+import com.mhmdjefr.moneymanager.data.local.CategoryEntity
+import com.mhmdjefr.moneymanager.data.local.TransactionEntity
 import com.mhmdjefr.moneymanager.ui.dashboard.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
-import java.text.NumberFormat
+import com.mhmdjefr.moneymanager.ui.wallet.RupiahVisualTransformation
+import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Locale
-
-data class CategoryItem(val name: String, val icon: ImageVector)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int = -1, onBackClick: () -> Unit = {}) {
-    val dbAccounts by viewModel.accountList.collectAsState(initial = emptyList())
+fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int = -1, onBackClick: () -> Unit) {
+    val accounts by viewModel.accounts.collectAsState(initial = emptyList())
+    val categories by viewModel.categories.collectAsState(initial = emptyList())
+    val existingTransaction by if (transactionId != -1) viewModel.getTransactionById(transactionId).collectAsState(initial = null) else remember { mutableStateOf<TransactionEntity?>(null) }
 
-    var selectedType by remember { mutableStateOf("Expense") }
-    var nominal by remember { mutableStateOf("") }
+    var type by remember { mutableStateOf("EXPENSE") }
+    var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf(Calendar.getInstance().timeInMillis) }
+    var selectedAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var targetAccount by remember { mutableStateOf<AccountEntity?>(null) }
+    var selectedCategory by remember { mutableStateOf<CategoryEntity?>(null) }
 
-    var selectedCategory by remember { mutableStateOf<CategoryItem?>(null) }
-    var expandedCategory by remember { mutableStateOf(false) }
+    var showAccountDialog by remember { mutableStateOf(false) }
+    var showTargetAccountDialog by remember { mutableStateOf(false) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
-    var selectedFromAccount by remember { mutableStateOf<AccountEntity?>(null) }
-    var expandedFrom by remember { mutableStateOf(false) }
-    var selectedToAccount by remember { mutableStateOf<AccountEntity?>(null) }
-    var expandedTo by remember { mutableStateOf(false) }
+    val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.US)
 
-    var amountError by remember { mutableStateOf(false) }
-    var walletError by remember { mutableStateOf(false) }
-    var categoryError by remember { mutableStateOf(false) }
+    LaunchedEffect(existingTransaction, accounts, categories) {
+        existingTransaction?.let { tx ->
+            type = tx.type
+            amount = tx.amount.toLong().toString()
+            date = tx.date
+            selectedAccount = accounts.find { it.id == tx.accountId }
 
-    val categories = when (selectedType) {
-        "Income" -> listOf(CategoryItem("Salary", Icons.Default.Work), CategoryItem("Bonus", Icons.Default.CardGiftcard), CategoryItem("Gift", Icons.Default.VolunteerActivism), CategoryItem("Investment", Icons.Default.TrendingUp), CategoryItem("Freelance", Icons.Default.LaptopMac), CategoryItem("Others", Icons.Default.MoreHoriz))
-        "Expense" -> listOf(CategoryItem("Food", Icons.Default.Fastfood), CategoryItem("Transport", Icons.Default.DirectionsCar), CategoryItem("Shopping", Icons.Default.ShoppingCart), CategoryItem("Bills", Icons.Default.Receipt), CategoryItem("Entertainment", Icons.Default.Movie), CategoryItem("Health", Icons.Default.LocalHospital), CategoryItem("Education", Icons.Default.School), CategoryItem("Installment", Icons.Default.CreditCard), CategoryItem("Others", Icons.Default.MoreHoriz))
-        else -> emptyList()
-    }
-
-    LaunchedEffect(selectedType) {
-        nominal = ""
-        selectedCategory = null
-        selectedFromAccount = null
-        selectedToAccount = null
-        amountError = false
-        walletError = false
-        categoryError = false
-    }
-
-    LaunchedEffect(transactionId, dbAccounts) {
-        if (transactionId != -1 && dbAccounts.isNotEmpty()) {
-            val tx = viewModel.getTransaction(transactionId)
-            tx?.let {
-                val mappedType = when (it.type) {
-                    "INCOME" -> "Income"
-                    "EXPENSE" -> "Expense"
-                    else -> "Transfer"
-                }
-                selectedType = mappedType
-                nominal = it.amount.toLong().toString()
-
-                selectedFromAccount = dbAccounts.find { acc -> acc.id == it.accountId }
-
-                val noteStr = it.note ?: ""
-                if (mappedType == "Transfer") {
-                    selectedToAccount = dbAccounts.find { acc -> acc.id == it.targetAccountId }
-                    note = noteStr.substringAfter("|").trim()
-                } else {
-                    if (noteStr.startsWith("[")) {
-                        val catName = noteStr.substringAfter("[").substringBefore("]")
-                        note = noteStr.substringAfter("]").trim()
-                        selectedCategory = CategoryItem(catName, getCategoryIcon(catName))
-                    }
-                }
+            if (tx.type == "TRANSFER") {
+                targetAccount = accounts.find { it.id == tx.targetAccountId }
+                note = tx.note ?: ""
+            } else {
+                val parsedCategoryName = tx.note?.substringBefore("]")?.replace("[", "") ?: ""
+                selectedCategory = categories.find { it.name == parsedCategoryName }
+                note = tx.note?.substringAfter("]")?.trim() ?: ""
             }
         }
     }
 
+    // Custom Styling biar nggak kelihatan kaku
+    val inputColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = CardWhite,
+        unfocusedContainerColor = CardWhite,
+        disabledContainerColor = CardWhite,
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        disabledTextColor = TextPrimary,
+        disabledLabelColor = TextSecondary,
+        disabledTrailingIconColor = TextPrimary
+    )
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (transactionId != -1) "Edit Transaction" else "Add Transaction", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                title = { Text(if (transactionId == -1) "Add Transaction" else "Edit Transaction", fontWeight = FontWeight.Bold) },
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
             )
         },
         containerColor = LightBackground
     ) { paddingValues ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(CardWhite).padding(4.dp)
-            ) {
-                listOf("Income", "Expense", "Transfer").forEach { type ->
-                    val isSelected = selectedType == type
-                    val bgColor = if (isSelected) SoftBlue else Color.Transparent
-                    val textColor = if (isSelected) Color.White else TextSecondary
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 24.dp)) {
 
+            // Transaction Type Selector
+            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)) {
+                listOf("EXPENSE" to "Expense", "INCOME" to "Income", "TRANSFER" to "Transfer").forEach { (typeKey, label) ->
+                    val isSelected = type == typeKey
+                    val indicatorColor = when (typeKey) {
+                        "EXPENSE" -> ExpenseRed
+                        "INCOME" -> SoftBlue
+                        else -> TextSecondary
+                    }
                     Box(
-                        modifier = Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).background(bgColor).clickable { selectedType = type }.padding(vertical = 12.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) indicatorColor else Color.Transparent)
+                            .clickable { type = typeKey; selectedCategory = null }
+                            .padding(vertical = 10.dp),
                         contentAlignment = Alignment.Center
-                    ) { Text(text = type, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp) }
+                    ) {
+                        Text(text = label, color = if (isSelected) Color.White else TextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
+            // Amount Input
             OutlinedTextField(
-                value = nominal,
-                onValueChange = { newValue ->
-                    if (newValue.all { it.isDigit() }) {
-                        nominal = newValue
-                        amountError = false
-                    }
-                },
-                label = { Text("Amount (Rp)") },
-                isError = amountError,
-                supportingText = { if (amountError) Text("Amount is required!", color = ExpenseRed) },
+                value = amount,
+                onValueChange = { if (it.all { char -> char.isDigit() }) amount = it },
+                label = { Text("Amount (Rp)", color = TextSecondary) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                visualTransformation = RupiahVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                visualTransformation = RupiahVisualTransformation(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent
-                )
+                colors = inputColors,
+                singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            if (selectedType == "Transfer") {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ExposedDropdownMenuBox(
-                        expanded = expandedFrom, onExpandedChange = { expandedFrom = !expandedFrom }, modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = selectedFromAccount?.name ?: "",
-                            onValueChange = {}, readOnly = true, label = { Text("Source") },
-                            isError = walletError,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFrom) },
-                            modifier = Modifier.menuAnchor(), shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expandedFrom, onDismissRequest = { expandedFrom = false },
-                            modifier = Modifier.background(CardWhite)
-                        ) {
-                            dbAccounts.forEach { acc -> DropdownMenuItem(text = { Text(acc.name) }, onClick = { selectedFromAccount = acc; expandedFrom = false; walletError = false }) }
-                        }
-                    }
+            // Date Selector
+            OutlinedTextField(
+                value = dateFormat.format(date),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Date", color = TextSecondary) },
+                trailingIcon = { Icon(Icons.Default.CalendarToday, contentDescription = "Select Date", tint = SoftBlue) },
+                modifier = Modifier.fillMaxWidth().clickable { showDatePicker = true },
+                enabled = false,
+                shape = RoundedCornerShape(16.dp),
+                colors = inputColors
+            )
 
-                    ExposedDropdownMenuBox(
-                        expanded = expandedTo, onExpandedChange = { expandedTo = !expandedTo }, modifier = Modifier.weight(1f)
-                    ) {
-                        OutlinedTextField(
-                            value = selectedToAccount?.name ?: "",
-                            onValueChange = {}, readOnly = true, label = { Text("Destination") },
-                            isError = walletError,
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedTo) },
-                            modifier = Modifier.menuAnchor(), shape = RoundedCornerShape(16.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent)
-                        )
-                        ExposedDropdownMenu(
-                            expanded = expandedTo, onDismissRequest = { expandedTo = false },
-                            modifier = Modifier.background(CardWhite)
-                        ) {
-                            dbAccounts.forEach { acc -> DropdownMenuItem(text = { Text(acc.name) }, onClick = { selectedToAccount = acc; expandedTo = false; walletError = false }) }
-                        }
-                    }
-                }
-                if (walletError) {
-                    Text("Source and destination wallet must be selected!", color = ExpenseRed, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
-                }
-            } else {
-                val walletLabel = if (selectedType == "Income") "Deposit to Wallet" else "Pay from Wallet"
-                ExposedDropdownMenuBox(expanded = expandedFrom, onExpandedChange = { expandedFrom = !expandedFrom }) {
-                    OutlinedTextField(
-                        value = selectedFromAccount?.name ?: "",
-                        onValueChange = {}, readOnly = true, label = { Text(walletLabel) },
-                        isError = walletError,
-                        supportingText = { if (walletError) Text("Wallet is required!", color = ExpenseRed) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedFrom) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(), shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedFrom, onDismissRequest = { expandedFrom = false },
-                        modifier = Modifier.background(CardWhite)
-                    ) {
-                        dbAccounts.forEach { acc -> DropdownMenuItem(text = { Text(acc.name) }, onClick = { selectedFromAccount = acc; expandedFrom = false; walletError = false }) }
-                    }
-                }
+            Spacer(modifier = Modifier.height(16.dp))
 
-                Spacer(modifier = Modifier.height(8.dp))
+            // Account Selection
+            OutlinedTextField(
+                value = selectedAccount?.name ?: "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text(if (type == "TRANSFER") "From Wallet" else "Wallet", color = TextSecondary) },
+                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                modifier = Modifier.fillMaxWidth().clickable { showAccountDialog = true },
+                enabled = false,
+                shape = RoundedCornerShape(16.dp),
+                colors = inputColors
+            )
 
-                val categoryLabel = if (selectedType == "Income") "Income Category" else "Expense Category"
-                ExposedDropdownMenuBox(expanded = expandedCategory, onExpandedChange = { expandedCategory = !expandedCategory }) {
-                    OutlinedTextField(
-                        value = selectedCategory?.name ?: "",
-                        onValueChange = {}, readOnly = true, label = { Text(categoryLabel) },
-                        isError = categoryError,
-                        supportingText = { if (categoryError) Text("Category is required!", color = ExpenseRed) },
-                        leadingIcon = selectedCategory?.let { { Icon(it.icon, contentDescription = null, tint = SoftBlue) } },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCategory) },
-                        modifier = Modifier.fillMaxWidth().menuAnchor(), shape = RoundedCornerShape(16.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent)
-                    )
-                    ExposedDropdownMenu(
-                        expanded = expandedCategory, onDismissRequest = { expandedCategory = false },
-                        modifier = Modifier.background(CardWhite)
-                    ) {
-                        categories.forEach { categoryItem ->
-                            DropdownMenuItem(
-                                leadingIcon = { Icon(categoryItem.icon, contentDescription = null, tint = SoftBlue) },
-                                text = { Text(categoryItem.name) },
-                                onClick = { selectedCategory = categoryItem; expandedCategory = false; categoryError = false }
-                            )
-                        }
-                    }
-                }
+            // Target Account for Transfer
+            if (type == "TRANSFER") {
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = targetAccount?.name ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("To Wallet", color = TextSecondary) },
+                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().clickable { showTargetAccountDialog = true },
+                    enabled = false,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = inputColors
+                )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            // Category Selection (Hidden for Transfer)
+            if (type != "TRANSFER") {
+                Spacer(modifier = Modifier.height(16.dp))
+                OutlinedTextField(
+                    value = selectedCategory?.name ?: "",
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Category", color = TextSecondary) },
+                    trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth().clickable { showCategoryDialog = true },
+                    enabled = false,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = inputColors
+                )
+            }
 
+            Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = note,
                 onValueChange = { note = it },
-                label = { Text("Note (Optional)") },
+                label = { Text("Notes (Optional)", color = TextSecondary) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(focusedContainerColor = CardWhite, unfocusedContainerColor = CardWhite, unfocusedBorderColor = Color.Transparent)
+                colors = inputColors
             )
 
-            Spacer(modifier = Modifier.weight(1f))
-
+            Spacer(modifier = Modifier.height(32.dp))
             Button(
                 onClick = {
-                    val nominalValue = nominal.replace(".", "").toDoubleOrNull() ?: 0.0
-                    val saveId = if (transactionId != -1) transactionId else null
-                    val fromAccId = selectedFromAccount?.id ?: 0
+                    val rawAmount = amount.replace(".", "").toDoubleOrNull() ?: 0.0
+                    val isValid = rawAmount > 0 && selectedAccount != null && (type != "TRANSFER" || targetAccount != null) && (type == "TRANSFER" || selectedCategory != null)
 
-                    var isValid = true
+                    if (isValid) {
+                        val finalNote = if (type == "TRANSFER") note else "[${selectedCategory?.name}] $note"
+                        val finalTargetId = if (type == "TRANSFER") targetAccount?.id else null
 
-                    if (nominalValue <= 0) { amountError = true; isValid = false }
-                    if (fromAccId == 0) { walletError = true; isValid = false }
-
-                    if (selectedType == "Transfer") {
-                        val toAccId = selectedToAccount?.id ?: 0
-                        if (toAccId == 0 || fromAccId == toAccId) { walletError = true; isValid = false }
-
-                        if (isValid) {
-                            val transferNote = "${selectedFromAccount?.name} -> ${selectedToAccount?.name} | $note"
-                            viewModel.saveTransaction(saveId, selectedType, nominalValue, "Transfer", transferNote, fromAccId, toAccId)
-                            onBackClick()
-                        }
-                    } else {
-                        val catName = selectedCategory?.name ?: ""
-                        if (catName.isEmpty()) { categoryError = true; isValid = false }
-
-                        if (isValid) {
-                            viewModel.saveTransaction(saveId, selectedType, nominalValue, catName, note, fromAccId)
-                            onBackClick()
-                        }
+                        val newTransaction = TransactionEntity(
+                            id = if (transactionId != -1) transactionId else 0,
+                            accountId = selectedAccount!!.id,
+                            amount = rawAmount,
+                            type = type,
+                            date = date,
+                            note = finalNote.trim(),
+                            targetAccountId = finalTargetId
+                        )
+                        viewModel.saveTransaction(newTransaction)
+                        onBackClick()
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SoftBlue)
-            ) {
-                Text(if (transactionId != -1) "Update Transaction" else "Save Transaction", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                colors = ButtonDefaults.buttonColors(containerColor = SoftBlue),
+                shape = RoundedCornerShape(16.dp)
+            ) { Text("Save Transaction", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+        }
+    }
+
+    // Material 3 Date Picker Dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = date)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { date = it }
+                    showDatePicker = false
+                }) { Text("OK", color = SoftBlue) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel", color = TextSecondary) }
             }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // Dialogs for Selections
+    if (showAccountDialog) {
+        SelectionDialog(title = "Select Wallet", items = accounts.map { it.name }, onDismiss = { showAccountDialog = false }) { selectedName ->
+            selectedAccount = accounts.find { it.name == selectedName }
+        }
+    }
+    if (showTargetAccountDialog) {
+        SelectionDialog(title = "Select Destination Wallet", items = accounts.filter { it.id != selectedAccount?.id }.map { it.name }, onDismiss = { showTargetAccountDialog = false }) { selectedName ->
+            targetAccount = accounts.find { it.name == selectedName }
+        }
+    }
+    if (showCategoryDialog) {
+        val validCategories = categories.filter { it.type == type }
+        SelectionDialog(title = "Select Category", items = validCategories.map { it.name }, onDismiss = { showCategoryDialog = false }) { selectedName ->
+            selectedCategory = validCategories.find { it.name == selectedName }
         }
     }
 }
 
-// Nah ini dia fungsi formatting Rupiah yang kemarin kepotong
-class RupiahVisualTransformation : VisualTransformation {
-    override fun filter(text: AnnotatedString): TransformedText {
-        if (text.text.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
-        val formattedText = try {
-            val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
-            format.format(text.text.toLong())
-        } catch (e: Exception) { text.text }
-
-        val offsetMapping = object : OffsetMapping {
-            override fun originalToTransformed(offset: Int): Int = formattedText.length
-            override fun transformedToOriginal(offset: Int): Int = text.length
+@Composable
+fun SelectionDialog(title: String, items: List<String>, onDismiss: () -> Unit, onSelect: (String) -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = CardWhite)) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(title, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Spacer(modifier = Modifier.height(16.dp))
+                LazyColumn(modifier = Modifier.heightIn(max = 300.dp)) {
+                    items(items) { item ->
+                        Text(
+                            text = item,
+                            fontSize = 16.sp,
+                            color = TextPrimary,
+                            modifier = Modifier.fillMaxWidth().clickable { onSelect(item); onDismiss() }.padding(vertical = 14.dp)
+                        )
+                    }
+                }
+            }
         }
-        return TransformedText(AnnotatedString(formattedText), offsetMapping)
     }
 }

@@ -5,11 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,159 +29,163 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-val ChartColors = listOf(
-    Color(0xFFE57373), Color(0xFF81C784), Color(0xFF64B5F6),
-    Color(0xFFFFD54F), Color(0xFFBA68C8), Color(0xFFFF8A65),
-    Color(0xFF4DB6AC), Color(0xFFA1887F), Color(0xFF90A4AE)
-)
-
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticScreen(viewModel: DashboardViewModel) {
     val monthlyTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
-    val currentMonthCal by viewModel.currentMonth.collectAsState()
-    val monthTitle = SimpleDateFormat("MMMM yyyy", Locale("en", "US")).format(currentMonthCal.time)
+    val currentMonth by viewModel.currentMonth.collectAsState()
 
-    // State buat milih mau liat chart Pengeluaran atau Pemasukan
-    var selectedType by remember { mutableStateOf("Expense") }
+    var selectedTab by remember { mutableStateOf("EXPENSE") }
+    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
+    val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
 
-    // Filter data sesuai tipe yang dipilih (Expense/Income)
-    val filteredTransactions = monthlyTransactions.filter { it.type.equals(selectedType, ignoreCase = true) }
-    val totalAmount = filteredTransactions.sumOf { it.amount }
+    val filteredTx = monthlyTransactions.filter { it.type == selectedTab }
+    val totalAmount = filteredTx.sumOf { it.amount }
 
-    fun extractCategory(note: String?): String {
-        val noteStr = note ?: ""
-        return if (noteStr.startsWith("[")) {
-            noteStr.substringAfter("[").substringBefore("]")
-        } else {
-            "Others"
-        }
-    }
-
-    // Grouping berdasarkan kategori
-    val groupedByCategory = filteredTransactions.groupBy { extractCategory(it.note) }
-        .mapValues { entry -> entry.value.sumOf { it.amount } }
+    val categoryTotals = filteredTx.groupBy { tx ->
+        tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotEmpty() } ?: "Others"
+    }.mapValues { it.value.sumOf { tx -> tx.amount } }
         .toList()
         .sortedByDescending { it.second }
 
-    val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
+    // Palet Warna Terpisah: Panas buat Expense, Dingin buat Income
+    val expenseColors = listOf(
+        Color(0xFFF26868), // Merah Utama (ExpenseRed)
+        Color(0xFFE67E22), // Oranye
+        Color(0xFFF2C94C), // Kuning
+        Color(0xFFA569BD), // Ungu
+        Color(0xFFD98880), // Merah Pudar
+        Color(0xFFF39C12)  // Oranye Gelap
+    )
 
-    Scaffold(containerColor = LightBackground) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 24.dp)
-        ) {
-            Spacer(modifier = Modifier.height(24.dp))
-            Text("Statistics", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+    val incomeColors = listOf(
+        Color(0xFF5ED5A8), // Hijau Utama (Income)
+        Color(0xFF5D9FE6), // Biru (SoftBlue)
+        Color(0xFF1ABC9C), // Cyan Terang
+        Color(0xFF2E86C1), // Biru Gelap
+        Color(0xFF7DCEA0), // Hijau Pudar
+        Color(0xFF85C1E9)  // Biru Muda
+    )
 
-            // --- 1. Navigator Bulan (Sama kayak Dashboard) ---
-            Spacer(modifier = Modifier.height(16.dp))
+    // Tentukan palet yang aktif berdasarkan tab
+    val activeColors = if (selectedTab == "EXPENSE") expenseColors else incomeColors
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Statistics", fontWeight = FontWeight.Bold) },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
+            )
+        },
+        containerColor = LightBackground
+    ) { paddingValues ->
+        Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 24.dp)) {
+
+            // Month Navigator
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { viewModel.previousMonth() }) {
-                    Icon(Icons.Default.ChevronLeft, contentDescription = "Previous", tint = TextPrimary)
-                }
-                Text(monthTitle, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                IconButton(onClick = { viewModel.nextMonth() }) {
-                    Icon(Icons.Default.ChevronRight, contentDescription = "Next", tint = TextPrimary)
-                }
+                IconButton(onClick = { viewModel.previousMonth() }) { Icon(Icons.Default.ArrowBack, contentDescription = "Prev") }
+                Text(text = monthFormat.format(currentMonth.time), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                IconButton(onClick = { viewModel.nextMonth() }) { Icon(Icons.Default.ArrowForward, contentDescription = "Next") }
             }
 
-            // --- 2. Toggle Pilihan (Income / Expense) ---
             Spacer(modifier = Modifier.height(16.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(CardWhite)
-                    .padding(4.dp)
-            ) {
-                listOf("Income", "Expense").forEach { type ->
-                    val isSelected = selectedType == type
-                    val bgColor = if (isSelected) SoftBlue else Color.Transparent
-                    val textColor = if (isSelected) Color.White else TextSecondary
 
+            // Tab Selector
+            Row(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)) {
+                listOf("EXPENSE" to "Expense", "INCOME" to "Income").forEach { (typeKey, label) ->
+                    val isSelected = selectedTab == typeKey
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(bgColor)
-                            .clickable { selectedType = type }
-                            .padding(vertical = 10.dp),
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) (if (typeKey == "EXPENSE") ExpenseRed else Color(0xFF5ED5A8)) else Color.Transparent)
+                            .clickable { selectedTab = typeKey }
+                            .padding(vertical = 8.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(text = type, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(text = label, color = if (isSelected) Color.White else TextSecondary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            if (totalAmount == 0.0) {
-                Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-                    Text("No $selectedType recorded this month.", color = TextSecondary)
+            // Donut Chart & List
+            if (categoryTotals.isEmpty() || totalAmount == 0.0) {
+                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text("No transactions this month.", color = TextSecondary)
                 }
             } else {
-                // --- 3. Donut Chart Dinamis ---
                 Box(
-                    modifier = Modifier.fillMaxWidth().height(250.dp),
+                    modifier = Modifier.fillMaxWidth().height(220.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Canvas(modifier = Modifier.size(200.dp)) {
+                    Canvas(modifier = Modifier.size(180.dp)) {
                         var startAngle = -90f
-                        groupedByCategory.forEachIndexed { index, (_, amount) ->
-                            val sweepAngle = (amount.toFloat() / totalAmount.toFloat()) * 360f
-                            val color = ChartColors[index % ChartColors.size]
+                        categoryTotals.forEachIndexed { index, (_, amount) ->
+                            val sweepAngle = (amount / totalAmount).toFloat() * 360f
+                            val sliceColor = activeColors[index % activeColors.size]
 
                             drawArc(
-                                color = color,
+                                color = sliceColor,
                                 startAngle = startAngle,
                                 sweepAngle = sweepAngle,
                                 useCenter = false,
-                                style = Stroke(width = 50f, cap = StrokeCap.Butt)
+                                style = Stroke(width = 60f, cap = StrokeCap.Round)
                             )
                             startAngle += sweepAngle
                         }
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Total $selectedType", fontSize = 12.sp, color = TextSecondary)
-                        val mainColor = if (selectedType == "Income") IncomeGreen else ExpenseRed
-                        Text("Rp ${format.format(totalAmount)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = mainColor)
+                        Text("Total ${if (selectedTab == "EXPENSE") "Expense" else "Income"}", color = TextSecondary, fontSize = 12.sp)
+                        Text(
+                            text = "Rp ${format.format(totalAmount)}",
+                            color = TextPrimary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
-                Text("Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text("Category Breakdown", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // --- 4. List Kategori ---
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(groupedByCategory.size) { index ->
-                        val (category, amount) = groupedByCategory[index]
-                        val color = ChartColors[index % ChartColors.size]
-                        val percentage = (amount / totalAmount) * 100
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(20.dp), modifier = Modifier.weight(1f)) {
+                    itemsIndexed(categoryTotals) { index, (categoryName, amount) ->
+                        val percentage = if (totalAmount > 0) (amount / totalAmount).toFloat() else 0f
+                        val displayPercent = (percentage * 100).toInt()
 
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.size(16.dp).clip(CircleShape).background(color))
-                            Spacer(modifier = Modifier.width(12.dp))
+                        val itemColor = activeColors[index % activeColors.size]
 
-                            Icon(getCategoryIcon(category), contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(category, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(CircleShape).background(itemColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(getCategoryIcon(categoryName), contentDescription = null, tint = itemColor)
                             }
-
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text("Rp ${format.format(amount)}", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                                Text(String.format(Locale.US, "%.1f%%", percentage), fontSize = 12.sp, color = TextSecondary)
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(categoryName, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                    Text("Rp ${format.format(amount)}", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    LinearProgressIndicator(
+                                        progress = { percentage },
+                                        modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
+                                        color = itemColor,
+                                        trackColor = LightBackground,
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text("$displayPercent%", color = TextSecondary, fontSize = 12.sp, modifier = Modifier.width(36.dp))
+                                }
                             }
                         }
                     }
