@@ -31,7 +31,7 @@ import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModelFactory
 import com.mhmdjefr.moneymanager.ui.settings.SettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.CategorySettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.*
-import com.mhmdjefr.moneymanager.ui.statistic.StatisticScreen
+import com.mhmdjefr.moneymanager.ui.statistic.StatsScreen
 import com.mhmdjefr.moneymanager.ui.theme.*
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionScreen
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionViewModel
@@ -45,6 +45,9 @@ class MainActivity : ComponentActivity() {
         val app = application as MoneyApplication
         val dashboardViewModel: DashboardViewModel by viewModels { DashboardViewModelFactory(app.repository) }
         val addTransactionViewModel: AddTransactionViewModel by viewModels { AddTransactionViewModelFactory(app.repository) }
+        val manageCategoriesViewModel: ManageCategoriesViewModel by viewModels {
+            ManageCategoriesViewModelFactory((application as MoneyApplication).repository)
+        }
 
         setContent {
             MoneyManagerTheme {
@@ -79,7 +82,7 @@ class MainActivity : ComponentActivity() {
 
                                 NavigationBarItem(
                                     selected = false,
-                                    onClick = { navController.navigate("add_transaction?-1") },
+                                    onClick = { navController.navigate("add_transaction/-1") },
                                     icon = {
                                         Box(modifier = Modifier.size(44.dp).background(SoftBlue, CircleShape), contentAlignment = Alignment.Center) {
                                             Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Transaction", tint = Color.White, modifier = Modifier.size(24.dp))
@@ -113,21 +116,45 @@ class MainActivity : ComponentActivity() {
                         startDestination = "dashboard",
                         modifier = Modifier.padding(innerPadding)
                     ) {
-                        composable("dashboard") { DashboardScreen(viewModel = dashboardViewModel, onNavigateToEdit = { id -> navController.navigate("add_transaction?$id") }) }
-                        composable(route = "add_transaction?{id}", arguments = listOf(navArgument("id") { defaultValue = -1; type = NavType.IntType })) { backStackEntry ->
-                            val id = backStackEntry.arguments?.getInt("id") ?: -1
-                            AddTransactionScreen(viewModel = addTransactionViewModel, transactionId = id, onBackClick = { navController.popBackStack() })
+                        composable("dashboard") {
+                            DashboardScreen(
+                                viewModel = dashboardViewModel,
+                                onNavigateToEdit = { txId ->
+                                    // Ini wajib bawa txId biar masuk ke mode Edit
+                                    navController.navigate("add_transaction/$txId")
+                                }
+                            )
                         }
+                        composable(
+                            route = "add_transaction/{id}",
+                            arguments = listOf(navArgument("id") {
+                                type = NavType.IntType
+                                defaultValue = -1
+                            })
+                        ) { backStackEntry ->
+                            val txId = backStackEntry.arguments?.getInt("id") ?: -1
+                            AddTransactionScreen(
+                                viewModel = addTransactionViewModel,
+                                transactionId = txId,
+                                onBackClick = { navController.popBackStack() }
+                            )
+                        }
+                        composable("manage_categories") {
+                            ManageCategoriesScreen(
+                                viewModel = manageCategoriesViewModel,
+                                onBackClick = { navController.popBackStack() }
+                            )
+                        }
+
                         composable("wallet") { WalletScreen(viewModel = dashboardViewModel) }
-                        composable("statistic") { StatisticScreen(viewModel = dashboardViewModel) }
+                        composable("statistic") {
+                            StatsScreen(viewModel = dashboardViewModel)
+                        }
                         composable("settings") {
                             SettingsScreen(
                                 viewModel = dashboardViewModel,
                                 onNavigate = { route -> navController.navigate(route) }
                             )
-                        }
-                        composable("manage_categories") {
-                            CategorySettingsScreen(viewModel = dashboardViewModel, onBackClick = { navController.popBackStack() })
                         }
                         composable("profile") { ProfileScreen(onBackClick = { navController.popBackStack() }) }
                         composable("privacy") { PrivacyScreen(onBackClick = { navController.popBackStack() }) }

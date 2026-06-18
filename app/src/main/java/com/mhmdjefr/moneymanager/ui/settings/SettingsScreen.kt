@@ -6,8 +6,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -28,7 +30,6 @@ import com.mhmdjefr.moneymanager.ui.theme.*
 fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) {
     val context = LocalContext.current
 
-    // Launcher untuk mengekspor (Membuat file baru)
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("text/comma-separated-values")
     ) { uri ->
@@ -40,7 +41,6 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
         }
     }
 
-    // Launcher untuk mengimpor (Membuka file lama)
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
@@ -59,7 +59,8 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp)
+                .verticalScroll(rememberScrollState()) // KUNCI UTAMA: Biar layarnya bisa di-scroll
+                .padding(horizontal = 24.dp, vertical = 16.dp) // Padding atas-bawah dikurangin biar ga terlalu turun
         ) {
             Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(modifier = Modifier.height(24.dp))
@@ -96,7 +97,7 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // --- SECTION BARU: DATA MANAGEMENT ---
+            // Data Management Section
             Text("Data Management", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(modifier = Modifier.height(16.dp))
             Card(
@@ -118,6 +119,9 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
                     )
                 }
             }
+
+            // Spacer tambahan di bawah biar kalau di-scroll gak mentok sama Bottom Navbar
+            Spacer(modifier = Modifier.height(40.dp))
         }
     }
 }

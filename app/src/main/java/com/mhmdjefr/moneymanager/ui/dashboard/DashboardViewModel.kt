@@ -28,7 +28,32 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val totalBalance: Flow<Double> = repository.getTotalBalance()
+    // DEKLARASI WAJIB DI ATAS (Biar bisa dibaca sama totalBalance di bawahnya)
+    val accountList: Flow<List<AccountEntity>> = repository.getAllAccounts()
+
+    val accounts: Flow<List<AccountEntity>> = repository.getAllAccounts()
+    val allTransactions: Flow<List<TransactionEntity>> = repository.getAllTransactions()
+    val allCategories: Flow<List<CategoryEntity>> = repository.getAllCategories()
+
+    // Kalkulasi Total Balance (Net Worth) yang 100% sinkron dengan layar Wallet
+    val totalBalance: Flow<Double> = combine(
+        accountList,
+        allTransactions
+    ) { accounts, transactions ->
+        var netWorth = 0.0
+        accounts.forEach { account ->
+            if (account.includeInTotal) {
+                val income = transactions.filter { it.accountId == account.id && it.type == "INCOME" }.sumOf { it.amount }
+                val expense = transactions.filter { it.accountId == account.id && it.type == "EXPENSE" }.sumOf { it.amount }
+                val transferOut = transactions.filter { it.accountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
+                val transferIn = transactions.filter { it.targetAccountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
+
+                val currentBalance = account.initialBalance + income - expense - transferOut + transferIn
+                netWorth += currentBalance
+            }
+        }
+        netWorth
+    }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val monthlyTransactions: Flow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
@@ -62,19 +87,13 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         }
     }
 
-    val allCategories: Flow<List<CategoryEntity>> = repository.getAllCategories()
-    val accountList: Flow<List<AccountEntity>> = repository.getAllAccounts()
-    val allTransactions: Flow<List<TransactionEntity>> = repository.getAllTransactions()
-
-    // --- LOGIKA UTAMA DATA MANAGEMENT (EXPORT TO CSV) ---
+    // --- LOGIKA EXPORT CSV ---
     fun exportToCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
-                // Ambil seluruh data transaksi dari database tanpa filter bulan
                 val txList = repository.getAllTransactions().first()
                 val outputStream: OutputStream? = context.contentResolver.openOutputStream(uri)
                 outputStream?.writer()?.use { writer ->
-                    // Tulis baris judul kolom (Header CSV)
                     writer.write("ID,Account_ID,Amount,Type,Date,Note,Target_Account_ID\n")
                     txList.forEach { tx ->
                         writer.write("${tx.id},${tx.accountId},${tx.amount},${tx.type},${tx.date},\"${tx.note ?: ""}\",${tx.targetAccountId ?: ""}\n")
@@ -87,16 +106,20 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         }
     }
 
-    // --- LOGIKA UTAMA DATA MANAGEMENT (IMPORT FROM CSV) ---
+    // --- LOGIKA IMPORT CSV (ANTI-DUPLIKAT) ---
     fun importFromCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
+                val existingTxs = repository.getAllTransactions().first()
+                val existingSignatures = existingTxs.map {
+                    "${it.accountId}_${it.amount}_${it.type}_${it.date}_${it.note ?: ""}"
+                }.toSet()
+
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 val lines = reader.readLines()
 
                 if (lines.isNotEmpty()) {
-                    // Skip baris index ke-0 karena itu header teks ("ID,Account_ID...")
                     for (i in 1 until lines.size) {
                         val row = lines[i].split(",")
                         if (row.size >= 5) {
@@ -107,16 +130,20 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                             val note = row.getOrNull(5)?.replace("\"", "") ?: ""
                             val targetAccountId = row.getOrNull(6)?.toIntOrNull()
 
-                            val importedTx = TransactionEntity(
-                                id = 0, // Set 0 biar auto-increment dari SQLite Room bekerja otomatis
-                                accountId = accountId,
-                                amount = amount,
-                                type = type,
-                                date = date,
-                                note = note,
-                                targetAccountId = targetAccountId
-                            )
-                            repository.insertTransaction(importedTx)
+                            val signature = "${accountId}_${amount}_${type}_${date}_${note}"
+
+                            if (!existingSignatures.contains(signature)) {
+                                val importedTx = TransactionEntity(
+                                    id = 0,
+                                    accountId = accountId,
+                                    amount = amount,
+                                    type = type,
+                                    date = date,
+                                    note = note,
+                                    targetAccountId = targetAccountId
+                                )
+                                repository.insertTransaction(importedTx)
+                            }
                         }
                     }
                 }

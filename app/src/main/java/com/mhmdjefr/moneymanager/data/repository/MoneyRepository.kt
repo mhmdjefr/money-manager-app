@@ -44,4 +44,8 @@ class MoneyRepository(private val dao: MoneyDao) {
     suspend fun deleteCategory(category: CategoryEntity) {
         withContext(Dispatchers.IO) { dao.deleteCategory(category) }
     }
+
+    suspend fun updateCategory(category: CategoryEntity) {
+        withContext(Dispatchers.IO) { dao.updateCategory(category) }
+    }
 }

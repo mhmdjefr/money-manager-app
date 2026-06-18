@@ -29,9 +29,9 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun MoneyManagerTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Set false biar warna kita konsisten dan gak ketimpa wallpaper sistem Android 12+
-    dynamicColor: Boolean = false,
+    // Kunci paksa ke false biar sistem gak bisa maksa Dark Mode
+    darkTheme: Boolean = false,
+    dynamicColor: Boolean = false, // Matikan dynamic color bawaan OS
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
