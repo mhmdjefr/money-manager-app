@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,20 +27,7 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-fun getCategoryIcon(categoryName: String?): ImageVector {
-    if (categoryName == null) return Icons.Default.Category
-    val name = categoryName.lowercase()
-    return when {
-        name.contains("food") || name.contains("makan") || name.contains("minum") || name.contains("kopi") -> Icons.Default.Fastfood
-        name.contains("transport") || name.contains("car") || name.contains("motor") || name.contains("bensin") -> Icons.Default.DirectionsCar
-        name.contains("shop") || name.contains("belanja") || name.contains("gacha") -> Icons.Default.ShoppingCart
-        name.contains("bill") || name.contains("tagihan") || name.contains("listrik") -> Icons.Default.Receipt
-        name.contains("work") || name.contains("gaji") || name.contains("salary") -> Icons.Default.Work
-        name.contains("gift") || name.contains("hadiah") || name.contains("bonus") -> Icons.Default.CardGiftcard
-        name.contains("invest") || name.contains("saham") || name.contains("crypto") || name.contains("trending") -> Icons.Default.TrendingUp
-        else -> Icons.Default.Category
-    }
-}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Unit) {
@@ -49,6 +37,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     val monthlyTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
     val accounts by viewModel.accounts.collectAsState(initial = emptyList())
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val allCategories by viewModel.allCategories.collectAsState(initial = emptyList())
 
     // 1. Ambil data yang udah difilter berdasarkan pencarian (Search Bar)
     val searchedTransactions by viewModel.filteredMonthlyTransactions.collectAsState(initial = emptyList())
@@ -288,6 +277,9 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
 
                         val categoryName = if (isTransfer) "Transfer" else tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotEmpty() } ?: "Others"
 
+// TAMBAHIN BARIS INI: Nyari kategori berdasarkan namanya
+                        val categoryEntity = allCategories.find { it.name == categoryName }
+
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -304,8 +296,11 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                     modifier = Modifier.size(48.dp).clip(CircleShape).background(txColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(if (isTransfer) Icons.Default.SyncAlt else getCategoryIcon(categoryName), contentDescription = null, tint = txColor)
+                                    // UBAH BARIS INI: Panggil categoryEntity?.iconName
+                                    val iconToUse = if (isTransfer) Icons.Default.SyncAlt else getCategoryIcon(categoryEntity?.iconName)
+                                    Icon(iconToUse, contentDescription = null, tint = txColor)
                                 }
+// ...
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(categoryName, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)

@@ -1,5 +1,9 @@
 package com.mhmdjefr.moneymanager.ui.statistic
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
-import com.mhmdjefr.moneymanager.ui.dashboard.getCategoryIcon
+import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -35,6 +39,7 @@ import java.util.Locale
 fun StatsScreen(viewModel: DashboardViewModel) {
     val transactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
     val currentMonth by viewModel.currentMonth.collectAsState()
+    val allCategories by viewModel.allCategories.collectAsState(initial = emptyList())
 
     var selectedTab by remember { mutableStateOf("INCOME") }
 
@@ -70,6 +75,16 @@ fun StatsScreen(viewModel: DashboardViewModel) {
         categoryTotals.mapIndexed { index, pair ->
             pair.first to poolColors[index % poolColors.size]
         }.toMap()
+    }
+
+    // ANIMASI STATE UNTUK DONUT CHART
+    val donutAnimationProgress = remember { Animatable(0f) }
+    LaunchedEffect(categoryTotals, selectedTab, currentMonth) {
+        donutAnimationProgress.snapTo(0f)
+        donutAnimationProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 1200, easing = FastOutSlowInEasing)
+        )
     }
 
     Scaffold(
@@ -132,9 +147,10 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                         Canvas(modifier = Modifier.size(200.dp)) {
                             var startAngle = -90f
                             categoryTotals.forEachIndexed { index, pair ->
-                                val sweepAngle = (pair.second / totalAmount).toFloat() * 360f
+                                val targetSweep = (pair.second / totalAmount).toFloat() * 360f
+                                // Kalikan dengan animasi biar muter pelan-pelan
+                                val sweepAngle = targetSweep * donutAnimationProgress.value
 
-                                // Ambil warna dari map dinamis yang dijamin sinkron dengan list bawah
                                 val color = categoryColorMap[pair.first] ?: baseColor
 
                                 drawArc(
@@ -146,7 +162,7 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                                     size = Size(size.width, size.height),
                                     topLeft = Offset(0f, 0f)
                                 )
-                                startAngle += sweepAngle
+                                startAngle += targetSweep
                             }
                         }
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -163,9 +179,15 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                 itemsIndexed(categoryTotals) { index, pair ->
                     val (category, amount) = pair
                     val percentage = (amount / totalAmount).toFloat()
-
-                    // Tarik warna yang sama persis dari map pendeteksi
                     val color = categoryColorMap[category] ?: baseColor
+                    val categoryEntity = allCategories.find { it.name == category }
+
+                    // ANIMASI STATE UNTUK PROGRESS BAR
+                    val animatedProgress by animateFloatAsState(
+                        targetValue = percentage,
+                        animationSpec = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+                        label = "BarAnimation"
+                    )
 
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
@@ -175,7 +197,7 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                             modifier = Modifier.size(48.dp).clip(CircleShape).background(color.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(getCategoryIcon(category), contentDescription = null, tint = color)
+                            Icon(getCategoryIcon(categoryEntity?.iconName), contentDescription = null, tint = color)
                         }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
@@ -186,7 +208,7 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 LinearProgressIndicator(
-                                    progress = { percentage },
+                                    progress = { animatedProgress }, // Pakai nilai yang udah dianimasiin
                                     modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(4.dp)),
                                     color = color,
                                     trackColor = CardWhite,

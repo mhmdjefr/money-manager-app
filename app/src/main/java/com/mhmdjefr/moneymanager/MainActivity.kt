@@ -33,6 +33,7 @@ import com.mhmdjefr.moneymanager.ui.settings.CategorySettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.*
 import com.mhmdjefr.moneymanager.ui.statistic.StatsScreen
 import com.mhmdjefr.moneymanager.ui.theme.*
+import com.mhmdjefr.moneymanager.ui.splash.SplashScreen
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionScreen
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionViewModel
 import com.mhmdjefr.moneymanager.ui.transaction.AddTransactionViewModelFactory
@@ -113,9 +114,14 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "dashboard",
+                        startDestination = "splash",
                         modifier = Modifier.padding(innerPadding)
                     ) {
+                        composable("splash") {
+                            SplashScreen(navController = navController)
+                        }
+
+                        // UBAH JADI GINI AJA, JANGAN ADA YANG DOBEL
                         composable("dashboard") {
                             DashboardScreen(
                                 viewModel = dashboardViewModel,
@@ -125,6 +131,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
+// ... sisanya ke bawah biarin sama
                         composable(
                             route = "add_transaction/{id}",
                             arguments = listOf(navArgument("id") {

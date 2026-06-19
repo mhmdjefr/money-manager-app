@@ -56,4 +56,10 @@ interface MoneyDao {
 
     @Update
     fun updateCategory(category: CategoryEntity)
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteAllTransactions(): Int
+
+    @Query("DELETE FROM accounts")
+    suspend fun deleteAllAccounts(): Int
 }

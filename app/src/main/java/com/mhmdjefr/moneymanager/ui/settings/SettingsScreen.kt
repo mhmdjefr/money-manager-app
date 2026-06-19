@@ -13,10 +13,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -52,6 +53,8 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
         }
     }
 
+    var showResetDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = LightBackground
     ) { paddingValues ->
@@ -59,8 +62,8 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .verticalScroll(rememberScrollState()) // KUNCI UTAMA: Biar layarnya bisa di-scroll
-                .padding(horizontal = 24.dp, vertical = 16.dp) // Padding atas-bawah dikurangin biar ga terlalu turun
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 16.dp)
         ) {
             Text("Settings", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
             Spacer(modifier = Modifier.height(24.dp))
@@ -120,9 +123,67 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
                 }
             }
 
-            // Spacer tambahan di bawah biar kalau di-scroll gak mentok sama Bottom Navbar
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Danger Zone Section (Reset Data)
+            Text("Danger Zone", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = ExpenseRed)
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { showResetDialog = true },
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = CardWhite)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(ExpenseRed.copy(alpha = 0.1f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.DeleteForever, contentDescription = null, tint = ExpenseRed)
+                    }
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text("Reset All Data", color = ExpenseRed, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+
             Spacer(modifier = Modifier.height(40.dp))
         }
+    }
+
+    // DIALOG KONFIRMASI RESET
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDialog = false },
+            title = { Text("Reset All Data?", fontWeight = FontWeight.Bold) },
+            text = { Text("Tindakan ini akan menghapus semua dompet dan histori transaksi secara permanen. Data tidak bisa dikembalikan.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.resetApplicationData() // Pastiin lo udah bikin fungsi ini di ViewModel
+                        showResetDialog = false
+                        Toast.makeText(context, "Semua data berhasil di-reset", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                ) {
+                    Text("Ya, Hapus Semua", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDialog = false }) {
+                    Text("Batal", color = TextSecondary)
+                }
+            },
+            containerColor = CardWhite
+        )
     }
 }
 

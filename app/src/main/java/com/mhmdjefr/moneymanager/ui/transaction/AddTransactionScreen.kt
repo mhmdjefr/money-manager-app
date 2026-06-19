@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.mhmdjefr.moneymanager.data.local.AccountEntity
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
 import com.mhmdjefr.moneymanager.data.local.TransactionEntity
-import com.mhmdjefr.moneymanager.ui.dashboard.getCategoryIcon
+import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
 import com.mhmdjefr.moneymanager.ui.wallet.RupiahVisualTransformation
 import java.text.SimpleDateFormat
@@ -271,7 +271,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
                                     .border(2.dp, if (isSelected) baseColor else Color.Transparent, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Icon(imageVector = getCategoryIcon(cat.name), contentDescription = cat.name, tint = if (isSelected) Color.White else TextSecondary)
+                                Icon(imageVector = getCategoryIcon(cat.iconName), contentDescription = cat.name, tint = if (isSelected) Color.White else TextSecondary)
                             }
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(text = cat.name, fontSize = 12.sp, color = if (isSelected) TextPrimary else TextSecondary, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal, textAlign = TextAlign.Center)

@@ -1,29 +1,53 @@
 package com.mhmdjefr.moneymanager.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
-import com.mhmdjefr.moneymanager.ui.dashboard.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
+
+// Kamus Ikon Lengkap
+val categoryIconsMap = mapOf(
+    "Category" to Icons.Default.Category,
+    "Fastfood" to Icons.Default.Fastfood,
+    "LocalCafe" to Icons.Default.LocalCafe,
+    "ShoppingCart" to Icons.Default.ShoppingCart,
+    "Receipt" to Icons.Default.Receipt,
+    "DirectionsCar" to Icons.Default.DirectionsCar,
+    "Flight" to Icons.Default.Flight,
+    "Work" to Icons.Default.Work,
+    "Home" to Icons.Default.Home,
+    "Favorite" to Icons.Default.Favorite,
+    "CardGiftcard" to Icons.Default.CardGiftcard,
+    "TrendingUp" to Icons.Default.TrendingUp,
+    "School" to Icons.Default.School,
+    "Pets" to Icons.Default.Pets,
+    "Place" to Icons.Default.Place,
+    "Info" to Icons.Default.Info
+)
+
+// Fungsi global untuk membaca ikon dari nama String-nya
+fun getCategoryIcon(iconName: String?): ImageVector {
+    return categoryIconsMap[iconName] ?: Icons.Default.Category
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -35,6 +59,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
     var showDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     var inputName by remember { mutableStateOf("") }
+    var selectedIconName by remember { mutableStateOf("Category") } // Default icon
 
     val baseColor = if (selectedTab == "EXPENSE") ExpenseRed else Color(0xFF5ED5A8)
     val currentCategories = categories.filter { it.type == selectedTab }
@@ -52,6 +77,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                 onClick = {
                     editingCategory = null
                     inputName = ""
+                    selectedIconName = "Category"
                     showDialog = true
                 },
                 containerColor = baseColor,
@@ -107,7 +133,8 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                                     modifier = Modifier.size(48.dp).clip(CircleShape).background(baseColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(getCategoryIcon(cat.name), contentDescription = null, tint = baseColor)
+                                    // Panggil fungsinya untuk nampilin ikon
+                                    Icon(getCategoryIcon(cat.iconName), contentDescription = null, tint = baseColor)
                                 }
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(cat.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
@@ -116,6 +143,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                                 IconButton(onClick = {
                                     editingCategory = cat
                                     inputName = cat.name
+                                    selectedIconName = cat.iconName // Set ikon saat edit
                                     showDialog = true
                                 }) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = SoftBlue) }
 
@@ -130,20 +158,51 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
         }
     }
 
-    // DIALOG ADD/EDIT KATEGORI
+    // DIALOG ADD/EDIT KATEGORI DENGAN ICON PICKER
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
             title = { Text(if (editingCategory == null) "Add Category" else "Edit Category", fontWeight = FontWeight.Bold) },
             text = {
-                OutlinedTextField(
-                    value = inputName,
-                    onValueChange = { inputName = it },
-                    label = { Text("Category Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Column {
+                    OutlinedTextField(
+                        value = inputName,
+                        onValueChange = { inputName = it },
+                        label = { Text("Category Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Select Icon", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // ICON PICKER GRID HORIZONTAL
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(categoryIconsMap.keys.toList()) { iconName ->
+                            val isSelected = selectedIconName == iconName
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) baseColor.copy(alpha = 0.2f) else Color.Transparent)
+                                    .border(2.dp, if (isSelected) baseColor else Color.Transparent, CircleShape)
+                                    .clickable { selectedIconName = iconName },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = categoryIconsMap[iconName]!!,
+                                    contentDescription = null,
+                                    tint = if (isSelected) baseColor else TextSecondary
+                                )
+                            }
+                        }
+                    }
+                }
             },
             confirmButton = {
                 Button(
@@ -153,7 +212,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                                 id = editingCategory?.id ?: 0,
                                 name = inputName.trim(),
                                 type = selectedTab,
-                                iconName = editingCategory?.iconName ?: "Category" // <-- Tambahin baris ini bro
+                                iconName = selectedIconName // Simpan ikon yang dipilih ke database
                             )
                             viewModel.saveCategory(newCat)
                             showDialog = false

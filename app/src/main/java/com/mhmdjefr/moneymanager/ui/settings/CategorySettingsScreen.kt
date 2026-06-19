@@ -20,7 +20,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
-import com.mhmdjefr.moneymanager.ui.dashboard.getCategoryIcon
+import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)

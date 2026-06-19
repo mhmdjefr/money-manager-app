@@ -188,6 +188,12 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
     fun setSearchQuery(query: String) { _searchQuery.value = query }
     fun saveCategory(name: String, type: String, iconName: String) { viewModelScope.launch { repository.insertCategory(CategoryEntity(name = name, type = type, iconName = iconName)) } }
     fun deleteCategory(category: CategoryEntity) { viewModelScope.launch { repository.deleteCategory(category) } }
+
+    fun resetApplicationData() {
+        viewModelScope.launch {
+            repository.resetAllData()
+        }
+    }
 }
 
 class DashboardViewModelFactory(private val repository: MoneyRepository) : ViewModelProvider.Factory {

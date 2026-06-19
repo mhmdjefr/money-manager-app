@@ -48,4 +48,10 @@ class MoneyRepository(private val dao: MoneyDao) {
     suspend fun updateCategory(category: CategoryEntity) {
         withContext(Dispatchers.IO) { dao.updateCategory(category) }
     }
+
+    suspend fun resetAllData() {
+        dao.deleteAllTransactions()
+        dao.deleteAllAccounts()
+        // moneyDao.deleteAllCategories() // kalau kategori mau diikutin reset
+    }
 }
