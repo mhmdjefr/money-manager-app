@@ -1,26 +1,31 @@
+# ===== Build outputs =====
+build/
+captures/
+.cxx/
+*.apk
+*.aar
+
+# ===== Gradle =====
+.gradle/
+
+# ===== Local config (machine-specific, never share) =====
+local.properties
+
+# ===== Signing / secrets (NEVER commit) =====
+*.keystore
+*.jks
+keystore.properties
+
+# ===== Android Studio / IntelliJ =====
 *.iml
 *.ipr
 *.iws
 .idea/
-.gradle/
-build/
-captures/
-local.properties
-.DS_Store
-.cxx/
-*.apk
-*.aar
-*.keystore
-*.jks
-
-# Android Studio local configuration
-~/AndroidStudio*
 .navigation/
-
-# Log files
-*.log
-
-# Android Studio 3.6+ configurations
 .androidide/
-keystore.properties
-*.jks
+
+# ===== macOS =====
+.DS_Store
+
+# ===== Logs =====
+*.log
