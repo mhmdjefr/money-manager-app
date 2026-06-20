@@ -46,15 +46,24 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("INSERT INTO accounts (name, initialBalance, balance, type, includeInTotal, orderIndex) VALUES ('BCA', 0.0, 0.0, 'REGULAR', 1, 1)")
             db.execSQL("INSERT INTO accounts (name, initialBalance, balance, type, includeInTotal, orderIndex) VALUES ('GoPay', 0.0, 0.0, 'REGULAR', 1, 2)")
 
-            // Seed Kategori
+            // Seed Kategori - INCOME
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Salary', 'INCOME', 'Work')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Bonus', 'INCOME', 'CardGiftcard')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Investment', 'INCOME', 'TrendingUp')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Gift', 'INCOME', 'Celebration')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Other Income', 'INCOME', 'MoreHoriz')")
 
+            // Seed Kategori - EXPENSE
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Food', 'EXPENSE', 'Fastfood')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Transport', 'EXPENSE', 'DirectionsCar')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Shopping', 'EXPENSE', 'ShoppingCart')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Bills', 'EXPENSE', 'Receipt')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Education', 'EXPENSE', 'School')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Health', 'EXPENSE', 'LocalHospital')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Entertainment', 'EXPENSE', 'Movie')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Travel', 'EXPENSE', 'Flight')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Housing/Rent', 'EXPENSE', 'Hotel')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Pets', 'EXPENSE', 'Pets')")
         }
     }
 }

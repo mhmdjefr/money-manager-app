@@ -28,14 +28,12 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    // DEKLARASI WAJIB DI ATAS (Biar bisa dibaca sama totalBalance di bawahnya)
     val accountList: Flow<List<AccountEntity>> = repository.getAllAccounts()
 
     val accounts: Flow<List<AccountEntity>> = repository.getAllAccounts()
     val allTransactions: Flow<List<TransactionEntity>> = repository.getAllTransactions()
     val allCategories: Flow<List<CategoryEntity>> = repository.getAllCategories()
 
-    // Kalkulasi Total Balance (Net Worth) yang 100% sinkron dengan layar Wallet
     val totalBalance: Flow<Double> = combine(
         accountList,
         allTransactions
@@ -72,28 +70,62 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         repository.getTransactionsByDateRange(start.timeInMillis, end.timeInMillis)
     }
 
-    val filteredMonthlyTransactions: Flow<List<TransactionEntity>> = combine(
-        monthlyTransactions,
+    // Search lintas SEMUA transaksi (tidak terbatas bulan aktif), berbeda dari
+    // monthlyTransactions yang dipakai untuk ringkasan income/expense bulan berjalan.
+    val searchResults: Flow<List<TransactionEntity>> = combine(
+        allTransactions,
         _searchQuery
     ) { transactions, query ->
         if (query.isBlank()) {
-            transactions
+            emptyList()
         } else {
             transactions.filter { tx ->
                 val categoryName = tx.note?.substringBefore("]")?.replace("[", "") ?: ""
                 val realNote = tx.note?.substringAfter("]") ?: ""
                 categoryName.contains(query, ignoreCase = true) || realNote.contains(query, ignoreCase = true)
-            }
+            }.sortedByDescending { it.date }
         }
     }
 
-    // --- LOGIKA EXPORT CSV ---
+    // --- EXPORT CSV (Profile + Accounts + Categories + Transactions) ---
     fun exportToCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
+                val accountsList = repository.getAllAccounts().first()
+                val categoriesList = repository.getAllCategories().first()
                 val txList = repository.getAllTransactions().first()
+
+                val prefs = context.getSharedPreferences("money_prefs", Context.MODE_PRIVATE)
+                val userName = prefs.getString("user_name", "User") ?: "User"
+                val userAvatar = prefs.getString("user_avatar", "Person") ?: "Person"
+
                 val outputStream: OutputStream? = context.contentResolver.openOutputStream(uri)
                 outputStream?.writer()?.use { writer ->
+
+                    // --- PROFILE ---
+                    writer.write("# PROFILE\n")
+                    writer.write("Name,Avatar\n")
+                    writer.write("\"${userName}\",${userAvatar}\n")
+                    writer.write("\n")
+
+                    // --- ACCOUNTS ---
+                    writer.write("# ACCOUNTS\n")
+                    writer.write("ID,Name,InitialBalance,Type,IncludeInTotal,OrderIndex\n")
+                    accountsList.forEach { acc ->
+                        writer.write("${acc.id},\"${acc.name}\",${acc.initialBalance},${acc.type},${acc.includeInTotal},${acc.orderIndex}\n")
+                    }
+                    writer.write("\n")
+
+                    // --- CATEGORIES ---
+                    writer.write("# CATEGORIES\n")
+                    writer.write("ID,Name,Type,IconName\n")
+                    categoriesList.forEach { cat ->
+                        writer.write("${cat.id},\"${cat.name}\",${cat.type},${cat.iconName}\n")
+                    }
+                    writer.write("\n")
+
+                    // --- TRANSACTIONS ---
+                    writer.write("# TRANSACTIONS\n")
                     writer.write("ID,Account_ID,Amount,Type,Date,Note,Target_Account_ID\n")
                     txList.forEach { tx ->
                         writer.write("${tx.id},${tx.accountId},${tx.amount},${tx.type},${tx.date},\"${tx.note ?: ""}\",${tx.targetAccountId ?: ""}\n")
@@ -106,52 +138,155 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         }
     }
 
-    // --- LOGIKA IMPORT CSV (ANTI-DUPLIKAT) ---
+    // --- IMPORT CSV (Profile + Accounts + Categories + Transactions, anti-duplicate) ---
     fun importFromCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
         viewModelScope.launch {
             try {
-                val existingTxs = repository.getAllTransactions().first()
-                val existingSignatures = existingTxs.map {
-                    "${it.accountId}_${it.amount}_${it.type}_${it.date}_${it.note ?: ""}"
-                }.toSet()
-
                 val inputStream = context.contentResolver.openInputStream(uri)
                 val reader = BufferedReader(InputStreamReader(inputStream))
                 val lines = reader.readLines()
 
-                if (lines.isNotEmpty()) {
-                    for (i in 1 until lines.size) {
-                        val row = lines[i].split(",")
+                val sections = mutableMapOf<String, MutableList<String>>()
+                var currentSection: String? = null
+
+                for (line in lines) {
+                    val trimmed = line.trim()
+                    if (trimmed.startsWith("# ")) {
+                        currentSection = trimmed.removePrefix("# ").trim()
+                        sections[currentSection] = mutableListOf()
+                    } else if (trimmed.isNotBlank() && currentSection != null) {
+                        sections[currentSection]?.add(line)
+                    }
+                }
+
+                val isLegacyFormat = sections.isEmpty()
+
+                sections["PROFILE"]?.let { rows ->
+                    if (rows.size >= 2) {
+                        val data = parseCsvLine(rows[1])
+                        if (data.size >= 2) {
+                            val prefs = context.getSharedPreferences("money_prefs", Context.MODE_PRIVATE)
+                            prefs.edit()
+                                .putString("user_name", data[0])
+                                .putString("user_avatar", data[1])
+                                .apply()
+                        }
+                    }
+                }
+
+                sections["ACCOUNTS"]?.let { rows ->
+                    val existingAccounts = repository.getAllAccounts().first()
+                    val existingSignatures = existingAccounts.map { "${it.name}_${it.type}" }.toSet()
+
+                    for (i in 1 until rows.size) {
+                        val row = parseCsvLine(rows[i])
+                        if (row.size >= 6) {
+                            val name = row[1]
+                            val initialBalance = row[2].toDoubleOrNull() ?: 0.0
+                            val type = row[3]
+                            val includeInTotal = row[4].toBooleanStrictOrNull() ?: true
+                            val orderIndex = row[5].toIntOrNull() ?: 0
+
+                            val signature = "${name}_${type}"
+                            if (!existingSignatures.contains(signature)) {
+                                repository.insertAccount(
+                                    AccountEntity(
+                                        id = 0,
+                                        name = name,
+                                        initialBalance = initialBalance,
+                                        type = type,
+                                        includeInTotal = includeInTotal,
+                                        orderIndex = orderIndex
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+
+                sections["CATEGORIES"]?.let { rows ->
+                    val existingCategories = repository.getAllCategories().first()
+                    val existingSignatures = existingCategories.map { "${it.name}_${it.type}" }.toSet()
+
+                    for (i in 1 until rows.size) {
+                        val row = parseCsvLine(rows[i])
+                        if (row.size >= 4) {
+                            val name = row[1]
+                            val type = row[2]
+                            val iconName = row[3]
+
+                            val signature = "${name}_${type}"
+                            if (!existingSignatures.contains(signature)) {
+                                repository.insertCategory(
+                                    CategoryEntity(name = name, type = type, iconName = iconName)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val transactionRows = sections["TRANSACTIONS"] ?: if (isLegacyFormat) lines else null
+                transactionRows?.let { rows ->
+                    val existingTxs = repository.getAllTransactions().first()
+                    val existingSignatures = existingTxs.map {
+                        "${it.accountId}_${it.amount}_${it.type}_${it.date}_${it.note ?: ""}"
+                    }.toSet()
+
+                    for (i in 1 until rows.size) {
+                        val row = parseCsvLine(rows[i])
                         if (row.size >= 5) {
                             val accountId = row[1].toIntOrNull() ?: continue
                             val amount = row[2].toDoubleOrNull() ?: 0.0
                             val type = row[3]
                             val date = row[4].toLongOrNull() ?: Calendar.getInstance().timeInMillis
-                            val note = row.getOrNull(5)?.replace("\"", "") ?: ""
+                            val note = row.getOrNull(5) ?: ""
                             val targetAccountId = row.getOrNull(6)?.toIntOrNull()
 
                             val signature = "${accountId}_${amount}_${type}_${date}_${note}"
 
                             if (!existingSignatures.contains(signature)) {
-                                val importedTx = TransactionEntity(
-                                    id = 0,
-                                    accountId = accountId,
-                                    amount = amount,
-                                    type = type,
-                                    date = date,
-                                    note = note,
-                                    targetAccountId = targetAccountId
+                                repository.insertTransaction(
+                                    TransactionEntity(
+                                        id = 0,
+                                        accountId = accountId,
+                                        amount = amount,
+                                        type = type,
+                                        date = date,
+                                        note = note,
+                                        targetAccountId = targetAccountId
+                                    )
                                 )
-                                repository.insertTransaction(importedTx)
                             }
                         }
                     }
                 }
+
                 onSuccess()
             } catch (e: Exception) {
                 onError(e)
             }
         }
+    }
+
+    private fun parseCsvLine(line: String): List<String> {
+        val result = mutableListOf<String>()
+        val current = StringBuilder()
+        var insideQuotes = false
+        var i = 0
+        while (i < line.length) {
+            val c = line[i]
+            when {
+                c == '"' -> insideQuotes = !insideQuotes
+                c == ',' && !insideQuotes -> {
+                    result.add(current.toString())
+                    current.clear()
+                }
+                else -> current.append(c)
+            }
+            i++
+        }
+        result.add(current.toString())
+        return result
     }
 
     fun saveAccount(id: Int, name: String, initialBalance: Double, type: String, includeInTotal: Boolean, orderIndex: Int) {
