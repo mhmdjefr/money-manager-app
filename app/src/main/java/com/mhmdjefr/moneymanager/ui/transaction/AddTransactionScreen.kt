@@ -66,6 +66,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
 
     var showDatePicker by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.US)
 
     // Pre-fill data saat Edit Mode
@@ -297,9 +298,19 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
                 Button(
                     onClick = {
                         val rawAmount = amount.replace(".", "").toDoubleOrNull() ?: 0.0
-                        val isValid = rawAmount > 0 && selectedAccount != null && (type != "TRANSFER" || targetAccount != null) && (type == "TRANSFER" || selectedCategory != null)
 
-                        if (isValid) {
+                        val errorMessage = when {
+                            rawAmount <= 0 -> "Please enter an amount"
+                            selectedAccount == null -> "Please select a wallet"
+                            type == "TRANSFER" && targetAccount == null -> "Please select a destination wallet"
+                            type != "TRANSFER" && selectedCategory == null -> "Please select a category"
+                            else -> null
+                        }
+
+                        if (errorMessage != null) {
+                            Toast.makeText(context, errorMessage, Toast.LENGTH_SHORT).show()
+                        } else if (!isSaving) {
+                            isSaving = true
                             val finalNote = if (type == "TRANSFER") note else "[${selectedCategory?.name}] $note"
                             val finalTargetId = if (type == "TRANSFER") targetAccount?.id else null
 
@@ -312,18 +323,23 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
                                 note = finalNote.trim(),
                                 targetAccountId = finalTargetId
                             )
-                            viewModel.saveTransaction(newTransaction)
-                            Toast.makeText(context, "Transaction Saved!", Toast.LENGTH_SHORT).show()
-                            onBackClick()
-                        } else {
-                            Toast.makeText(context, "Please fill all required fields", Toast.LENGTH_SHORT).show()
+                            viewModel.saveTransaction(newTransaction) {
+                                isSaving = false
+                                Toast.makeText(context, "Transaction Saved!", Toast.LENGTH_SHORT).show()
+                                onBackClick()
+                            }
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = baseColor),
+                    enabled = !isSaving,
+                    colors = ButtonDefaults.buttonColors(containerColor = baseColor, disabledContainerColor = baseColor.copy(alpha = 0.5f)),
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) {
-                    Text(if (transactionId == -1) "Save Transaction" else "Update Transaction", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    if (isSaving) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                    } else {
+                        Text(if (transactionId == -1) "Save Transaction" else "Update Transaction", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }

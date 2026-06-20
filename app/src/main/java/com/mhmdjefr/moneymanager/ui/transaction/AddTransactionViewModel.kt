@@ -12,13 +12,17 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AddTransactionViewModel(private val repository: MoneyRepository) : ViewModel() {
     val accounts: Flow<List<AccountEntity>> = repository.getAllAccounts()
     val categories: Flow<List<CategoryEntity>> = repository.getAllCategories()
 
-    fun saveTransaction(transaction: TransactionEntity) {
-        viewModelScope.launch(Dispatchers.IO) { repository.insertTransaction(transaction) }
+    fun saveTransaction(transaction: TransactionEntity, onComplete: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.insertTransaction(transaction)
+            withContext(Dispatchers.Main) { onComplete() }
+        }
     }
 
     fun deleteTransaction(transaction: TransactionEntity) {
