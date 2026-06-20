@@ -6,15 +6,20 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -37,14 +42,30 @@ import java.util.Locale
 
 @Composable
 fun StatsScreen(viewModel: DashboardViewModel) {
-    val transactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
+    val rawTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
+    val rawPreviousMonthTransactions by viewModel.previousMonthTransactions.collectAsState(initial = emptyList())
     val currentMonth by viewModel.currentMonth.collectAsState()
     val allCategories by viewModel.allCategories.collectAsState(initial = emptyList())
+    val accounts by viewModel.accounts.collectAsState(initial = emptyList())
 
     var selectedTab by remember { mutableStateOf("INCOME") }
+    var selectedWalletId by remember { mutableStateOf<Int?>(null) }
+
+    // Reset filter wallet setiap kali bulan aktif berubah
+    LaunchedEffect(currentMonth) {
+        selectedWalletId = null
+    }
+
+    val transactions = rawTransactions.filter { selectedWalletId == null || it.accountId == selectedWalletId }
+    val previousMonthTransactions = rawPreviousMonthTransactions.filter { selectedWalletId == null || it.accountId == selectedWalletId }
 
     val filteredTransactions = transactions.filter { it.type == selectedTab }
     val totalAmount = filteredTransactions.sumOf { it.amount }
+
+    // Perbandingan dengan bulan sebelumnya
+    val previousTotalAmount = previousMonthTransactions.filter { it.type == selectedTab }.sumOf { it.amount }
+    val diffAmount = totalAmount - previousTotalAmount
+    val diffPercentage = if (previousTotalAmount > 0) (diffAmount / previousTotalAmount) * 100 else null
 
     val categoryTotals = filteredTransactions.groupBy { tx ->
         tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotBlank() } ?: "Others"
@@ -52,7 +73,7 @@ fun StatsScreen(viewModel: DashboardViewModel) {
         entry.value.sumOf { it.amount }
     }.toList().sortedByDescending { it.second }
 
-    val formatRp = NumberFormat.getNumberInstance(Locale("id", "ID"))
+    val formatRp = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
 
     val baseColor = if (selectedTab == "INCOME") Color(0xFF5ED5A8) else ExpenseRed
@@ -113,6 +134,43 @@ fun StatsScreen(viewModel: DashboardViewModel) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // --- FILTER WALLET ---
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    item {
+                        val isSelected = selectedWalletId == null
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) baseColor else CardWhite)
+                                .border(1.dp, if (isSelected) baseColor else Color(0xFFE0E0E0), RoundedCornerShape(20.dp))
+                                .clickable { selectedWalletId = null }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("All", color = if (isSelected) Color.White else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    items(accounts) { acc ->
+                        val isSelected = selectedWalletId == acc.id
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) baseColor else CardWhite)
+                                .border(1.dp, if (isSelected) baseColor else Color(0xFFE0E0E0), RoundedCornerShape(20.dp))
+                                .clickable { selectedWalletId = acc.id }
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(acc.name, color = if (isSelected) Color.White else TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)
                 ) {
@@ -168,6 +226,46 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(if (selectedTab == "INCOME") "Total Income" else "Total Expense", color = TextSecondary, fontSize = 12.sp)
                             Text("Rp ${formatRp.format(totalAmount)}", color = TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Badge perbandingan dengan bulan sebelumnya
+                    if (diffPercentage != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        val isIncrease = diffAmount >= 0
+                        // Untuk EXPENSE, kenaikan itu "buruk" (merah); untuk INCOME, kenaikan itu "baik" (hijau)
+                        val trendColor = if (selectedTab == "EXPENSE") {
+                            if (isIncrease) ExpenseRed else Color(0xFF5ED5A8)
+                        } else {
+                            if (isIncrease) Color(0xFF5ED5A8) else ExpenseRed
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(trendColor.copy(alpha = 0.12f))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp)
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (isIncrease) Icons.Default.ArrowUpward else Icons.Default.ArrowDownward,
+                                        contentDescription = null,
+                                        tint = trendColor,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "${kotlin.math.abs(diffPercentage).toInt()}% • ${if (isIncrease) "+" else "-"}Rp ${formatRp.format(kotlin.math.abs(diffAmount))} vs last month",
+                                        color = trendColor,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
                         }
                     }
 
