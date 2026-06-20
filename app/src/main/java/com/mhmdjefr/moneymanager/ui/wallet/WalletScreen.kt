@@ -187,13 +187,16 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Bottom
                     ) {
                         Column {
                             Text("Net Worth", color = Color.LightGray, fontSize = 14.sp)
                             Text(formatRp(netWorth), color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                         }
-                        IconButton(onClick = { viewModel.toggleBalanceVisibility() }) {
+                        IconButton(
+                            onClick = { viewModel.toggleBalanceVisibility() },
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        ) {
                             Icon(if (isVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff, contentDescription = null, tint = Color.LightGray)
                         }
                     }
