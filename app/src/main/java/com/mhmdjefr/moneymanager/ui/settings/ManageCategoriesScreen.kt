@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
+import com.mhmdjefr.moneymanager.ui.common.ConfirmDeleteDialog
 import com.mhmdjefr.moneymanager.ui.theme.*
 
 // Kamus Ikon Lengkap
@@ -41,7 +42,12 @@ val categoryIconsMap = mapOf(
     "School" to Icons.Default.School,
     "Pets" to Icons.Default.Pets,
     "Place" to Icons.Default.Place,
-    "Info" to Icons.Default.Info
+    "Info" to Icons.Default.Info,
+    "Movie" to Icons.Default.Movie,
+    "LocalHospital" to Icons.Default.LocalHospital,
+    "Hotel" to Icons.Default.Hotel,
+    "Celebration" to Icons.Default.Celebration,
+    "MoreHoriz" to Icons.Default.MoreHoriz
 )
 
 // Fungsi global untuk membaca ikon dari nama String-nya
@@ -58,6 +64,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
     // Dialog State
     var showDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<CategoryEntity?>(null) }
+    var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
     var inputName by remember { mutableStateOf("") }
     var selectedIconName by remember { mutableStateOf("Category") } // Default icon
 
@@ -147,7 +154,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                                     showDialog = true
                                 }) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = SoftBlue) }
 
-                                IconButton(onClick = { viewModel.deleteCategory(cat) }) {
+                                IconButton(onClick = { categoryToDelete = cat }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed)
                                 }
                             }
@@ -225,6 +232,17 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                 TextButton(onClick = { showDialog = false }) { Text("Cancel", color = TextSecondary) }
             },
             containerColor = CardWhite
+        )
+    }
+
+    categoryToDelete?.let { cat ->
+        ConfirmDeleteDialog(
+            message = "Category \"${cat.name}\" will be permanently deleted. Transactions using this category won't be deleted, but the category label may no longer display correctly.",
+            onConfirm = {
+                viewModel.deleteCategory(cat)
+                categoryToDelete = null
+            },
+            onDismiss = { categoryToDelete = null }
         )
     }
 }

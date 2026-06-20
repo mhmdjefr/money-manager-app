@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.mhmdjefr.moneymanager.data.local.AccountEntity
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
 import com.mhmdjefr.moneymanager.data.local.TransactionEntity
+import com.mhmdjefr.moneymanager.ui.common.ConfirmDeleteDialog
 import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
 import com.mhmdjefr.moneymanager.ui.wallet.RupiahVisualTransformation
@@ -64,6 +65,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
     var selectedCategory by remember { mutableStateOf<CategoryEntity?>(null) }
 
     var showDatePicker by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.US)
 
     // Pre-fill data saat Edit Mode
@@ -115,10 +117,9 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
                 navigationIcon = { IconButton(onClick = onBackClick) { Icon(Icons.Default.ArrowBack, contentDescription = "Back") } },
                 actions = {
                     if (transactionId != -1 && existingTransaction != null) {
-                        IconButton(onClick = {
-                            viewModel.deleteTransaction(existingTransaction!!)
-                            onBackClick()
-                        }) { Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed) }
+                        IconButton(onClick = { showDeleteDialog = true }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed)
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = LightBackground)
@@ -344,5 +345,16 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showDeleteDialog) {
+        ConfirmDeleteDialog(
+            message = "This transaction will be permanently deleted. This action cannot be undone.",
+            onConfirm = {
+                existingTransaction?.let { viewModel.deleteTransaction(it) }
+                onBackClick()
+            },
+            onDismiss = { showDeleteDialog = false }
+        )
     }
 }

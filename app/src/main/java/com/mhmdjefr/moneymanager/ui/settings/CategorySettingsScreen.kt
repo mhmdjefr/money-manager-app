@@ -22,6 +22,7 @@ import androidx.compose.ui.window.Dialog
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
 import com.mhmdjefr.moneymanager.ui.settings.getCategoryIcon
 import com.mhmdjefr.moneymanager.ui.theme.*
+import com.mhmdjefr.moneymanager.ui.common.ConfirmDeleteDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +31,7 @@ fun CategorySettingsScreen(viewModel: DashboardViewModel, onBackClick: () -> Uni
 
     var selectedTab by remember { mutableStateOf("EXPENSE") }
     var showDialog by remember { mutableStateOf(false) }
+    var categoryToDelete by remember { mutableStateOf<com.mhmdjefr.moneymanager.data.local.CategoryEntity?>(null) }
     var inputName by remember { mutableStateOf("") }
     var selectedIconName by remember { mutableStateOf("AttachMoney") }
 
@@ -98,7 +100,7 @@ fun CategorySettingsScreen(viewModel: DashboardViewModel, onBackClick: () -> Uni
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Text(category.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                             }
-                            IconButton(onClick = { viewModel.deleteCategory(category) }) {
+                            IconButton(onClick = { categoryToDelete = category }) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = ExpenseRed)
                             }
                         }
@@ -133,5 +135,16 @@ fun CategorySettingsScreen(viewModel: DashboardViewModel, onBackClick: () -> Uni
                 }
             }
         }
+    }
+
+    categoryToDelete?.let { cat ->
+        ConfirmDeleteDialog(
+            message = "Category \"${cat.name}\" will be permanently deleted. Transactions using this category won't be deleted, but the category label may no longer display correctly.",
+            onConfirm = {
+                viewModel.deleteCategory(cat)
+                categoryToDelete = null
+            },
+            onDismiss = { categoryToDelete = null }
+        )
     }
 }
