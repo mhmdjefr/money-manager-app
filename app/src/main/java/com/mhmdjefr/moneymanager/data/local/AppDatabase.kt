@@ -52,6 +52,11 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Investment', 'INCOME', 'TrendingUp')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Gift', 'INCOME', 'Celebration')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Other Income', 'INCOME', 'MoreHoriz')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Freelance', 'INCOME', 'Work')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Rental Income', 'INCOME', 'Home')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Refund', 'INCOME', 'Receipt')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Interest', 'INCOME', 'TrendingUp')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Allowance', 'INCOME', 'Favorite')")
 
             // Seed Kategori - EXPENSE
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Food', 'EXPENSE', 'Fastfood')")
@@ -64,6 +69,11 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Travel', 'EXPENSE', 'Flight')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Housing/Rent', 'EXPENSE', 'Hotel')")
             db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Pets', 'EXPENSE', 'Pets')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Groceries', 'EXPENSE', 'LocalGroceryStore')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Subscriptions', 'EXPENSE', 'Subscriptions')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Personal Care', 'EXPENSE', 'Spa')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Insurance', 'EXPENSE', 'Shield')")
+            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Donation', 'EXPENSE', 'VolunteerActivism')")
         }
     }
 }

@@ -47,7 +47,12 @@ val categoryIconsMap = mapOf(
     "LocalHospital" to Icons.Default.LocalHospital,
     "Hotel" to Icons.Default.Hotel,
     "Celebration" to Icons.Default.Celebration,
-    "MoreHoriz" to Icons.Default.MoreHoriz
+    "MoreHoriz" to Icons.Default.MoreHoriz,
+    "LocalGroceryStore" to Icons.Default.LocalGroceryStore,
+    "Subscriptions" to Icons.Default.Subscriptions,
+    "Spa" to Icons.Default.Spa,
+    "Shield" to Icons.Default.Shield,
+    "VolunteerActivism" to Icons.Default.VolunteerActivism
 )
 
 // Fungsi global untuk membaca ikon dari nama String-nya
