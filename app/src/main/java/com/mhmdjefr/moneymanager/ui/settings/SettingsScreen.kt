@@ -168,7 +168,7 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.resetApplicationData() // Pastiin lo udah bikin fungsi ini di ViewModel
+                        viewModel.resetApplicationData(context)
                         showResetDialog = false
                         Toast.makeText(context, "All data has been reset successfully", Toast.LENGTH_SHORT).show()
                     },
