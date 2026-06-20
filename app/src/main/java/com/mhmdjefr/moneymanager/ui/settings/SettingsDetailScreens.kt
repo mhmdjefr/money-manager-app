@@ -53,7 +53,7 @@ fun ProfileScreen(onBackClick: () -> Unit) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("money_prefs", Context.MODE_PRIVATE) }
 
-    var userName by remember { mutableStateOf(sharedPrefs.getString("user_name", "Jeffri") ?: "Jeffri") }
+    var userName by remember { mutableStateOf(sharedPrefs.getString("user_name", "User") ?: "User") }
     var userAvatar by remember { mutableStateOf(sharedPrefs.getString("user_avatar", "Person") ?: "Person") }
 
     var inputName by remember { mutableStateOf(userName) }

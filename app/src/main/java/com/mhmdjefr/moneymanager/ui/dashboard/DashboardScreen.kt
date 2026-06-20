@@ -39,8 +39,10 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     val searchQuery by viewModel.searchQuery.collectAsState()
     val allCategories by viewModel.allCategories.collectAsState(initial = emptyList())
 
-    // 1. Ambil data yang udah difilter berdasarkan pencarian (Search Bar)
-    val searchedTransactions by viewModel.filteredMonthlyTransactions.collectAsState(initial = emptyList())
+    // 1. Ambil hasil search lintas-bulan (hanya terisi saat user sedang mengetik query).
+    //    Saat query kosong, balik ke transaksi bulan aktif seperti biasa.
+    val searchResults by viewModel.searchResults.collectAsState(initial = emptyList())
+    val searchedTransactions = if (searchQuery.isBlank()) monthlyTransactions else searchResults
 
     // 2. State untuk nyimpen filter dompet yang lagi aktif
     var selectedWalletId by remember { mutableStateOf<Int?>(null) }
