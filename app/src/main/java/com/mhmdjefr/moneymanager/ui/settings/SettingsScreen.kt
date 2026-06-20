@@ -164,22 +164,22 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
         AlertDialog(
             onDismissRequest = { showResetDialog = false },
             title = { Text("Reset All Data?", fontWeight = FontWeight.Bold) },
-            text = { Text("Tindakan ini akan menghapus semua dompet dan histori transaksi secara permanen. Data tidak bisa dikembalikan.") },
+            text = { Text("This action will permanently delete all wallets and transaction history. This data cannot be recovered.") },
             confirmButton = {
                 Button(
                     onClick = {
                         viewModel.resetApplicationData() // Pastiin lo udah bikin fungsi ini di ViewModel
                         showResetDialog = false
-                        Toast.makeText(context, "Semua data berhasil di-reset", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "All data has been reset successfully", Toast.LENGTH_SHORT).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
                 ) {
-                    Text("Ya, Hapus Semua", color = Color.White)
+                    Text("Yes, Delete All", color = Color.White)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showResetDialog = false }) {
-                    Text("Batal", color = TextSecondary)
+                    Text("Cancel", color = TextSecondary)
                 }
             },
             containerColor = CardWhite
