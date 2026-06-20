@@ -47,6 +47,12 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     // 2. State untuk nyimpen filter dompet yang lagi aktif
     var selectedWalletId by remember { mutableStateOf<Int?>(null) }
 
+    // Reset filter wallet setiap kali bulan aktif berubah, supaya tidak
+    // membingungkan user saat pindah bulan tapi filter lama masih nyala.
+    LaunchedEffect(currentMonth) {
+        selectedWalletId = null
+    }
+
     // 3. Terapin filter dompet ke data yang udah melewati Search Bar
     val finalFilteredTransactions = searchedTransactions.filter { tx ->
         selectedWalletId == null || tx.accountId == selectedWalletId || tx.targetAccountId == selectedWalletId
@@ -56,7 +62,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     val sharedPrefs = remember { context.getSharedPreferences("money_prefs", android.content.Context.MODE_PRIVATE) }
     val userName = sharedPrefs.getString("user_name", "User") ?: "User"
     val userAvatar = sharedPrefs.getString("user_avatar", "Person") ?: "Person"
-    val format = NumberFormat.getNumberInstance(Locale("id", "ID"))
+    val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
     val incomeColor = Color(0xFF5ED5A8)
 
@@ -92,10 +98,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                         )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text("Welcome back,", color = TextSecondary, fontSize = 12.sp)
-                        Text(userName, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Text(userName, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -104,13 +107,16 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     Column {
                         Text("Total Balance", color = TextSecondary, fontSize = 14.sp)
                         Text(formatRp(totalBalance), color = TextPrimary, fontSize = 32.sp, fontWeight = FontWeight.Bold)
                     }
-                    IconButton(onClick = { viewModel.toggleBalanceVisibility() }) {
+                    IconButton(
+                        onClick = { viewModel.toggleBalanceVisibility() },
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    ) {
                         Icon(
                             imageVector = if (isBalanceVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                             contentDescription = "Toggle Balance",
@@ -188,7 +194,17 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
-                Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                Text(
+                    text = if (searchQuery.isNotBlank()) "Search Results" else "Recent Transactions",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold, color = TextPrimary
+                )
+                if (searchQuery.isNotBlank()) {
+                    Text(
+                        text = "Searching across all months",
+                        fontSize = 12.sp, color = TextSecondary,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // --- FILTER WALLET UI (LazyRow) ---
