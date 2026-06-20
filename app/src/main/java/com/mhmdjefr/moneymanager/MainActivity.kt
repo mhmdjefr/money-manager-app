@@ -28,6 +28,8 @@ import androidx.navigation.navArgument
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardScreen
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModelFactory
+import com.mhmdjefr.moneymanager.ui.onboarding.OnboardingTooltip
+import com.mhmdjefr.moneymanager.ui.onboarding.rememberOnboardingState
 import com.mhmdjefr.moneymanager.ui.settings.SettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.CategorySettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.*
@@ -58,6 +60,10 @@ class MainActivity : ComponentActivity() {
 
                 val mainRoutes = listOf("dashboard", "statistic", "wallet", "settings")
 
+                // Onboarding: Add-transaction button tooltip, shown once on first
+                // landing on the dashboard.
+                val addButtonTooltip = rememberOnboardingState("add_transaction_button")
+
                 Scaffold(
                     bottomBar = {
                         if (currentRoute in mainRoutes) {
@@ -83,10 +89,24 @@ class MainActivity : ComponentActivity() {
 
                                 NavigationBarItem(
                                     selected = false,
-                                    onClick = { navController.navigate("add_transaction/-1") },
+                                    onClick = {
+                                        if (addButtonTooltip.isVisible) addButtonTooltip.dismiss()
+                                        navController.navigate("add_transaction/-1")
+                                    },
                                     icon = {
-                                        Box(modifier = Modifier.size(44.dp).background(SoftBlue, CircleShape), contentAlignment = Alignment.Center) {
-                                            Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Transaction", tint = Color.White, modifier = Modifier.size(24.dp))
+                                        Box {
+                                            Box(modifier = Modifier.size(44.dp).background(SoftBlue, CircleShape), contentAlignment = Alignment.Center) {
+                                                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Transaction", tint = Color.White, modifier = Modifier.size(24.dp))
+                                            }
+                                            if (currentRoute == "dashboard") {
+                                                Box(modifier = Modifier.align(Alignment.TopCenter).padding(bottom = 56.dp)) {
+                                                    OnboardingTooltip(
+                                                        visible = addButtonTooltip.isVisible,
+                                                        message = "Tap here to add a new transaction",
+                                                        onDismiss = { addButtonTooltip.dismiss() }
+                                                    )
+                                                }
+                                            }
                                         }
                                     },
                                     label = { Text("Add", fontSize = 10.sp) },
@@ -121,17 +141,15 @@ class MainActivity : ComponentActivity() {
                             SplashScreen(navController = navController)
                         }
 
-                        // UBAH JADI GINI AJA, JANGAN ADA YANG DOBEL
                         composable("dashboard") {
                             DashboardScreen(
                                 viewModel = dashboardViewModel,
                                 onNavigateToEdit = { txId ->
-                                    // Ini wajib bawa txId biar masuk ke mode Edit
                                     navController.navigate("add_transaction/$txId")
                                 }
                             )
                         }
-// ... sisanya ke bawah biarin sama
+
                         composable(
                             route = "add_transaction/{id}",
                             arguments = listOf(navArgument("id") {
