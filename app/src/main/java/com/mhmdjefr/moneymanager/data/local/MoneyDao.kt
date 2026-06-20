@@ -62,4 +62,7 @@ interface MoneyDao {
 
     @Query("DELETE FROM accounts")
     suspend fun deleteAllAccounts(): Int
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteAllCategories(): Int
 }

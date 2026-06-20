@@ -70,6 +70,27 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         repository.getTransactionsByDateRange(start.timeInMillis, end.timeInMillis)
     }
 
+    // Transaksi bulan SEBELUMNYA dari currentMonth, dipakai untuk perbandingan tren di Stats.
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val previousMonthTransactions: Flow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
+        val prevCal = calendar.clone() as Calendar
+        prevCal.add(Calendar.MONTH, -1)
+
+        val start = prevCal.clone() as Calendar
+        start.set(Calendar.DAY_OF_MONTH, 1)
+        start.set(Calendar.HOUR_OF_DAY, 0)
+        start.set(Calendar.MINUTE, 0)
+        start.set(Calendar.SECOND, 0)
+
+        val end = prevCal.clone() as Calendar
+        end.set(Calendar.DAY_OF_MONTH, end.getActualMaximum(Calendar.DAY_OF_MONTH))
+        end.set(Calendar.HOUR_OF_DAY, 23)
+        end.set(Calendar.MINUTE, 59)
+        end.set(Calendar.SECOND, 59)
+
+        repository.getTransactionsByDateRange(start.timeInMillis, end.timeInMillis)
+    }
+
     // Search lintas SEMUA transaksi (tidak terbatas bulan aktif), berbeda dari
     // monthlyTransactions yang dipakai untuk ringkasan income/expense bulan berjalan.
     val searchResults: Flow<List<TransactionEntity>> = combine(
@@ -324,9 +345,50 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
     fun saveCategory(name: String, type: String, iconName: String) { viewModelScope.launch { repository.insertCategory(CategoryEntity(name = name, type = type, iconName = iconName)) } }
     fun deleteCategory(category: CategoryEntity) { viewModelScope.launch { repository.deleteCategory(category) } }
 
-    fun resetApplicationData() {
+    fun resetApplicationData(context: Context) {
         viewModelScope.launch {
             repository.resetAllData()
+
+            // Re-seed: satu wallet default "Cash"
+            repository.insertAccount(
+                AccountEntity(name = "Cash", initialBalance = 0.0, type = "REGULAR", includeInTotal = true, orderIndex = 0)
+            )
+
+            // Re-seed kategori default - INCOME
+            repository.insertCategory(CategoryEntity(name = "Salary", type = "INCOME", iconName = "Work"))
+            repository.insertCategory(CategoryEntity(name = "Bonus", type = "INCOME", iconName = "CardGiftcard"))
+            repository.insertCategory(CategoryEntity(name = "Investment", type = "INCOME", iconName = "TrendingUp"))
+            repository.insertCategory(CategoryEntity(name = "Gift", type = "INCOME", iconName = "Celebration"))
+            repository.insertCategory(CategoryEntity(name = "Other Income", type = "INCOME", iconName = "MoreHoriz"))
+            repository.insertCategory(CategoryEntity(name = "Freelance", type = "INCOME", iconName = "Work"))
+            repository.insertCategory(CategoryEntity(name = "Rental Income", type = "INCOME", iconName = "Home"))
+            repository.insertCategory(CategoryEntity(name = "Refund", type = "INCOME", iconName = "Receipt"))
+            repository.insertCategory(CategoryEntity(name = "Interest", type = "INCOME", iconName = "TrendingUp"))
+            repository.insertCategory(CategoryEntity(name = "Allowance", type = "INCOME", iconName = "Favorite"))
+
+            // Re-seed kategori default - EXPENSE
+            repository.insertCategory(CategoryEntity(name = "Food", type = "EXPENSE", iconName = "Fastfood"))
+            repository.insertCategory(CategoryEntity(name = "Transport", type = "EXPENSE", iconName = "DirectionsCar"))
+            repository.insertCategory(CategoryEntity(name = "Shopping", type = "EXPENSE", iconName = "ShoppingCart"))
+            repository.insertCategory(CategoryEntity(name = "Bills", type = "EXPENSE", iconName = "Receipt"))
+            repository.insertCategory(CategoryEntity(name = "Education", type = "EXPENSE", iconName = "School"))
+            repository.insertCategory(CategoryEntity(name = "Health", type = "EXPENSE", iconName = "LocalHospital"))
+            repository.insertCategory(CategoryEntity(name = "Entertainment", type = "EXPENSE", iconName = "Movie"))
+            repository.insertCategory(CategoryEntity(name = "Travel", type = "EXPENSE", iconName = "Flight"))
+            repository.insertCategory(CategoryEntity(name = "Housing/Rent", type = "EXPENSE", iconName = "Hotel"))
+            repository.insertCategory(CategoryEntity(name = "Pets", type = "EXPENSE", iconName = "Pets"))
+            repository.insertCategory(CategoryEntity(name = "Groceries", type = "EXPENSE", iconName = "LocalGroceryStore"))
+            repository.insertCategory(CategoryEntity(name = "Subscriptions", type = "EXPENSE", iconName = "Subscriptions"))
+            repository.insertCategory(CategoryEntity(name = "Personal Care", type = "EXPENSE", iconName = "Spa"))
+            repository.insertCategory(CategoryEntity(name = "Insurance", type = "EXPENSE", iconName = "Shield"))
+            repository.insertCategory(CategoryEntity(name = "Donation", type = "EXPENSE", iconName = "VolunteerActivism"))
+
+            // Reset profile ke default
+            val prefs = context.getSharedPreferences("money_prefs", Context.MODE_PRIVATE)
+            prefs.edit()
+                .putString("user_name", "User")
+                .putString("user_avatar", "Person")
+                .apply()
         }
     }
 }

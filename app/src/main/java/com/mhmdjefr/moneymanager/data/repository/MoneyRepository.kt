@@ -30,7 +30,6 @@ class MoneyRepository(private val dao: MoneyDao) {
         withContext(Dispatchers.IO) { dao.insertAccount(account) }
     }
 
-    // Perintah baru untuk menghapus dompet di level repository
     suspend fun deleteAccount(account: AccountEntity) {
         withContext(Dispatchers.IO) { dao.deleteAccount(account) }
     }
@@ -49,9 +48,14 @@ class MoneyRepository(private val dao: MoneyDao) {
         withContext(Dispatchers.IO) { dao.updateCategory(category) }
     }
 
+    // Hapus seluruh transactions, accounts, dan categories.
+    // Re-seed (akun default "Cash" + kategori default) ditangani di DashboardViewModel,
+    // karena di sana juga perlu reset SharedPreferences (username/avatar).
     suspend fun resetAllData() {
-        dao.deleteAllTransactions()
-        dao.deleteAllAccounts()
-        // moneyDao.deleteAllCategories() // kalau kategori mau diikutin reset
+        withContext(Dispatchers.IO) {
+            dao.deleteAllTransactions()
+            dao.deleteAllAccounts()
+            dao.deleteAllCategories()
+        }
     }
 }
