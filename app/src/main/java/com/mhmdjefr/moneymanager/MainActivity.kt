@@ -6,6 +6,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -28,7 +29,7 @@ import androidx.navigation.navArgument
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardScreen
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModel
 import com.mhmdjefr.moneymanager.ui.dashboard.DashboardViewModelFactory
-import com.mhmdjefr.moneymanager.ui.onboarding.OnboardingTooltip
+import com.mhmdjefr.moneymanager.ui.onboarding.OnboardingTooltipWithArrow
 import com.mhmdjefr.moneymanager.ui.onboarding.rememberOnboardingState
 import com.mhmdjefr.moneymanager.ui.settings.SettingsScreen
 import com.mhmdjefr.moneymanager.ui.settings.CategorySettingsScreen
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 // landing on the dashboard.
                 val addButtonTooltip = rememberOnboardingState("add_transaction_button")
 
+                Box(modifier = Modifier.fillMaxSize()) {
                 Scaffold(
                     bottomBar = {
                         if (currentRoute in mainRoutes) {
@@ -94,19 +96,8 @@ class MainActivity : ComponentActivity() {
                                         navController.navigate("add_transaction/-1")
                                     },
                                     icon = {
-                                        Box {
-                                            Box(modifier = Modifier.size(44.dp).background(SoftBlue, CircleShape), contentAlignment = Alignment.Center) {
-                                                Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Transaction", tint = Color.White, modifier = Modifier.size(24.dp))
-                                            }
-                                            if (currentRoute == "dashboard") {
-                                                Box(modifier = Modifier.align(Alignment.TopCenter).padding(bottom = 56.dp)) {
-                                                    OnboardingTooltip(
-                                                        visible = addButtonTooltip.isVisible,
-                                                        message = "Tap here to add a new transaction",
-                                                        onDismiss = { addButtonTooltip.dismiss() }
-                                                    )
-                                                }
-                                            }
+                                        Box(modifier = Modifier.size(44.dp).background(SoftBlue, CircleShape), contentAlignment = Alignment.Center) {
+                                            Icon(imageVector = Icons.Filled.Add, contentDescription = "Add Transaction", tint = Color.White, modifier = Modifier.size(24.dp))
                                         }
                                     },
                                     label = { Text("Add", fontSize = 10.sp) },
@@ -185,6 +176,23 @@ class MainActivity : ComponentActivity() {
                         composable("privacy") { PrivacyScreen(onBackClick = { navController.popBackStack() }) }
                         composable("about") { AboutScreen(onBackClick = { navController.popBackStack() }) }
                     }
+                }
+
+                // Overlay tooltip Add-transaction, mengambang independen di atas
+                // bottom nav sehingga tidak mempengaruhi tinggi NavigationBarItem.
+                if (currentRoute == "dashboard") {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 84.dp)
+                    ) {
+                        OnboardingTooltipWithArrow(
+                            visible = addButtonTooltip.isVisible,
+                            message = "Tap here to add a new transaction",
+                            onDismiss = { addButtonTooltip.dismiss() }
+                        )
+                    }
+                }
                 }
             }
         }

@@ -94,6 +94,55 @@ fun TutorialReplayButton(onClick: () -> Unit) {
     }
 }
 
+// Varian tooltip dengan "ekor" panah mengarah ke bawah, untuk elemen seperti
+// tombol bottom-nav yang butuh penunjuk arah yang jelas.
+@Composable
+fun OnboardingTooltipWithArrow(
+    visible: Boolean,
+    message: String,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+        modifier = modifier
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF1E293B))
+                    .clickable { onDismiss() }
+                    .padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = message,
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.widthIn(max = 200.dp)
+                )
+                IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.White, modifier = Modifier.size(16.dp))
+                }
+            }
+            // Ekor segitiga kecil mengarah ke bawah
+            androidx.compose.foundation.Canvas(modifier = Modifier.size(width = 16.dp, height = 8.dp)) {
+                val path = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(0f, 0f)
+                    lineTo(size.width, 0f)
+                    lineTo(size.width / 2f, size.height)
+                    close()
+                }
+                drawPath(path, color = Color(0xFF1E293B))
+            }
+        }
+    }
+}
+
 class OnboardingState(
     initialVisible: Boolean,
     private val context: Context,
