@@ -47,6 +47,7 @@ fun StatsScreen(viewModel: DashboardViewModel) {
     val currentMonth by viewModel.currentMonth.collectAsState()
     val allCategories by viewModel.allCategories.collectAsState(initial = emptyList())
     val accounts by viewModel.accounts.collectAsState(initial = emptyList())
+    val budgetProgressList by viewModel.budgetProgressList.collectAsState(initial = emptyList())
 
     var selectedTab by remember { mutableStateOf("INCOME") }
     var selectedWalletId by remember { mutableStateOf<Int?>(null) }
@@ -170,6 +171,48 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
+
+                // --- BUDGET STATUS ---
+                if (budgetProgressList.isNotEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = CardWhite)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text("Budget Status", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                            Spacer(modifier = Modifier.height(12.dp))
+                            budgetProgressList.forEach { budget ->
+                                val progressColor = when {
+                                    budget.percentage >= 1f -> ExpenseRed
+                                    budget.percentage >= 0.8f -> Color(0xFFFFB74D)
+                                    else -> Color(0xFF5ED5A8)
+                                }
+                                Column(modifier = Modifier.padding(bottom = 12.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(budget.categoryName, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                        Text(
+                                            "Rp ${formatRp.format(budget.spentAmount)} / Rp ${formatRp.format(budget.limitAmount)}",
+                                            color = TextSecondary, fontSize = 11.sp
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    LinearProgressIndicator(
+                                        progress = { budget.percentage.coerceAtMost(1f) },
+                                        modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                                        color = progressColor,
+                                        trackColor = LightBackground
+                                    )
+                                    if (budget.isOverBudget) {
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text("Over budget!", color = ExpenseRed, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)
