@@ -8,8 +8,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.CoroutineScope
 
 @Database(
-    entities = [TransactionEntity::class, AccountEntity::class, CategoryEntity::class],
-    version = 4,
+    entities = [TransactionEntity::class, AccountEntity::class, CategoryEntity::class, BudgetEntity::class],
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -43,37 +43,45 @@ abstract class AppDatabase : RoomDatabase() {
 
             // Seed Dompet
             db.execSQL("INSERT INTO accounts (name, initialBalance, balance, type, includeInTotal, orderIndex) VALUES ('Cash', 0.0, 0.0, 'REGULAR', 1, 0)")
-            db.execSQL("INSERT INTO accounts (name, initialBalance, balance, type, includeInTotal, orderIndex) VALUES ('BCA', 0.0, 0.0, 'REGULAR', 1, 1)")
-            db.execSQL("INSERT INTO accounts (name, initialBalance, balance, type, includeInTotal, orderIndex) VALUES ('GoPay', 0.0, 0.0, 'REGULAR', 1, 2)")
 
             // Seed Kategori - INCOME
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Salary', 'INCOME', 'Work')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Bonus', 'INCOME', 'CardGiftcard')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Investment', 'INCOME', 'TrendingUp')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Gift', 'INCOME', 'Celebration')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Other Income', 'INCOME', 'MoreHoriz')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Freelance', 'INCOME', 'Work')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Rental Income', 'INCOME', 'Home')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Refund', 'INCOME', 'Receipt')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Interest', 'INCOME', 'TrendingUp')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Allowance', 'INCOME', 'Favorite')")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Salary', 'INCOME', 'Work', 0)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Bonus', 'INCOME', 'CardGiftcard', 1)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Investment', 'INCOME', 'TrendingUp', 2)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Gift', 'INCOME', 'Celebration', 3)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Other Income', 'INCOME', 'MoreHoriz', 4)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Freelance', 'INCOME', 'Work', 5)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Rental Income', 'INCOME', 'Home', 6)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Refund', 'INCOME', 'Receipt', 7)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Interest', 'INCOME', 'TrendingUp', 8)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Allowance', 'INCOME', 'Favorite', 9)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Cashback', 'INCOME', 'Redeem', 10)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Dividend', 'INCOME', 'TrendingUp', 11)")
 
             // Seed Kategori - EXPENSE
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Food', 'EXPENSE', 'Fastfood')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Transport', 'EXPENSE', 'DirectionsCar')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Shopping', 'EXPENSE', 'ShoppingCart')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Bills', 'EXPENSE', 'Receipt')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Education', 'EXPENSE', 'School')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Health', 'EXPENSE', 'LocalHospital')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Entertainment', 'EXPENSE', 'Movie')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Travel', 'EXPENSE', 'Flight')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Housing/Rent', 'EXPENSE', 'Hotel')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Pets', 'EXPENSE', 'Pets')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Groceries', 'EXPENSE', 'LocalGroceryStore')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Subscriptions', 'EXPENSE', 'Subscriptions')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Personal Care', 'EXPENSE', 'Spa')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Insurance', 'EXPENSE', 'Shield')")
-            db.execSQL("INSERT INTO categories (name, type, iconName) VALUES ('Donation', 'EXPENSE', 'VolunteerActivism')")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Food', 'EXPENSE', 'Fastfood', 0)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Transport', 'EXPENSE', 'DirectionsCar', 1)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Shopping', 'EXPENSE', 'ShoppingCart', 2)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Bills', 'EXPENSE', 'Receipt', 3)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Education', 'EXPENSE', 'School', 4)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Health', 'EXPENSE', 'LocalHospital', 5)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Entertainment', 'EXPENSE', 'Movie', 6)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Travel', 'EXPENSE', 'Flight', 7)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Housing/Rent', 'EXPENSE', 'Hotel', 8)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Pets', 'EXPENSE', 'Pets', 9)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Groceries', 'EXPENSE', 'LocalGroceryStore', 10)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Subscriptions', 'EXPENSE', 'Subscriptions', 11)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Personal Care', 'EXPENSE', 'Spa', 12)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Insurance', 'EXPENSE', 'Shield', 13)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Donation', 'EXPENSE', 'VolunteerActivism', 14)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Internet/WiFi', 'EXPENSE', 'Wifi', 15)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Fuel/Gas', 'EXPENSE', 'LocalGasStation', 16)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Repair & Maintenance', 'EXPENSE', 'Build', 17)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Taxes', 'EXPENSE', 'AccountBalance', 18)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Childcare', 'EXPENSE', 'ChildCare', 19)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Coffee/Snacks', 'EXPENSE', 'LocalCafe', 20)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Laundry', 'EXPENSE', 'LocalLaundryService', 21)")
+            db.execSQL("INSERT INTO categories (name, type, iconName, orderIndex) VALUES ('Parking & Toll', 'EXPENSE', 'LocalParking', 22)")
         }
     }
 }

@@ -8,5 +8,6 @@ data class CategoryEntity(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val name: String,
     val type: String, // INCOME atau EXPENSE
-    val iconName: String // Kita simpen nama string ikonnya, misal "Fastfood", "Work"
+    val iconName: String, // Kita simpen nama string ikonnya, misal "Fastfood", "Work"
+    val orderIndex: Int = 0 // Urutan tampil, diatur lewat drag-reorder
 )
