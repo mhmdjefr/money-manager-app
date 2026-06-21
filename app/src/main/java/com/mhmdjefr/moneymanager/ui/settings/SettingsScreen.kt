@@ -168,9 +168,10 @@ fun SettingsScreen(viewModel: DashboardViewModel, onNavigate: (String) -> Unit) 
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.resetApplicationData(context)
-                        showResetDialog = false
-                        Toast.makeText(context, "All data has been reset successfully", Toast.LENGTH_SHORT).show()
+                        viewModel.resetApplicationData(context) {
+                            showResetDialog = false
+                            Toast.makeText(context, "All data has been reset successfully", Toast.LENGTH_SHORT).show()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
                 ) {
