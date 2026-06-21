@@ -5,9 +5,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -24,6 +26,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -40,8 +45,19 @@ import com.mhmdjefr.moneymanager.ui.onboarding.OnboardingTooltip
 import com.mhmdjefr.moneymanager.ui.onboarding.TutorialReplayButton
 import com.mhmdjefr.moneymanager.ui.onboarding.rememberOnboardingState
 import com.mhmdjefr.moneymanager.ui.theme.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import java.text.NumberFormat
 import java.util.Locale
+
+// State kecil untuk auto-scroll: dipakai bersama oleh semua WalletCard dan
+// LazyColumn induk, supaya saat drag mendekati tepi viewport, list otomatis scroll.
+private class AutoScrollState {
+    var listBoundsTop by mutableStateOf(0f)
+    var listBoundsBottom by mutableStateOf(0f)
+    var pointerYOnScreen by mutableStateOf<Float?>(null)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -92,6 +108,37 @@ fun WalletScreen(viewModel: DashboardViewModel) {
 
     val sectionTooltip = rememberOnboardingState("wallet_assets_liability")
     val dragTooltip = rememberOnboardingState("wallet_drag_reorder")
+
+    val listState = rememberLazyListState()
+    val autoScrollState = remember { AutoScrollState() }
+    val density = LocalDensity.current
+
+    LaunchedEffect(Unit) {
+        coroutineScope {
+            while (isActive) {
+                val pointerY = autoScrollState.pointerYOnScreen
+                if (pointerY != null) {
+                    val edgeThreshold = with(density) { 80.dp.toPx() }
+                    val topEdge = autoScrollState.listBoundsTop + edgeThreshold
+                    val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+
+                    when {
+                        pointerY < topEdge -> {
+                            val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
+                            val speed = (distance / edgeThreshold) * 18f
+                            listState.scrollBy(-speed)
+                        }
+                        pointerY > bottomEdge -> {
+                            val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
+                            val speed = (distance / edgeThreshold) * 18f
+                            listState.scrollBy(speed)
+                        }
+                    }
+                }
+                delay(16L)
+            }
+        }
+    }
 
     if (showDialog) {
         Dialog(onDismissRequest = { showDialog = false }) {
@@ -219,8 +266,15 @@ fun WalletScreen(viewModel: DashboardViewModel) {
             }
 
             LazyColumn(
+                state = listState,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot()
+                        autoScrollState.listBoundsTop = pos.y
+                        autoScrollState.listBoundsBottom = pos.y + coords.size.height
+                    }
             ) {
                 if (mutableAssets.isNotEmpty()) {
                     item {
@@ -256,7 +310,8 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                                     mutableAssets.add(to, item)
                                 },
                                 onDragEnd = { persistOrder() },
-                                list = mutableAssets
+                                list = mutableAssets,
+                                autoScrollState = autoScrollState
                             )
                             if (index == 0) {
                                 OnboardingTooltip(
@@ -293,7 +348,8 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                                 mutableLiabilities.add(to, item)
                             },
                             onDragEnd = { persistOrder() },
-                            list = mutableLiabilities
+                            list = mutableLiabilities,
+                            autoScrollState = autoScrollState
                         )
                     }
                 }
@@ -324,11 +380,13 @@ private fun WalletCard(
     onClick: () -> Unit,
     onReorder: (from: Int, to: Int) -> Unit,
     onDragEnd: () -> Unit,
-    list: List<AccountEntity>
+    list: List<AccountEntity>,
+    autoScrollState: Any
 ) {
     var dragFromIndex by remember { mutableStateOf(-1) }
     var accumulatedDragY by remember { mutableStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
+    var cardPositionY by remember { mutableStateOf(0f) }
 
     val elevation by animateFloatAsState(
         targetValue = if (isDragging) 12f else 0f,
@@ -347,6 +405,8 @@ private fun WalletCard(
     val transferIn = transactions.filter { it.targetAccountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
     val currentBalance = account.initialBalance + income - expense - transferOut + transferIn
 
+    val scrollState = autoScrollState as AutoScrollState
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -355,16 +415,21 @@ private fun WalletCard(
                 scaleY = scale
             }
             .shadow(elevation = elevation.dp, shape = RoundedCornerShape(20.dp), clip = false)
+            .onGloballyPositioned { coords ->
+                cardPositionY = coords.positionInRoot().y
+            }
             .pointerInput(account.id) {
                 detectDragGesturesAfterLongPress(
-                    onDragStart = {
+                    onDragStart = { offset ->
                         dragFromIndex = list.indexOf(account)
                         accumulatedDragY = 0f
                         isDragging = true
+                        scrollState.pointerYOnScreen = cardPositionY + offset.y
                     },
                     onDrag = { change, dragAmount ->
                         change.consume()
                         accumulatedDragY += dragAmount.y
+                        scrollState.pointerYOnScreen = cardPositionY + change.position.y
 
                         if (accumulatedDragY > 120f && dragFromIndex < list.size - 1) {
                             val targetIndex = dragFromIndex + 1
@@ -382,10 +447,12 @@ private fun WalletCard(
                         onDragEnd()
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.pointerYOnScreen = null
                     },
                     onDragCancel = {
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.pointerYOnScreen = null
                     }
                 )
             }
