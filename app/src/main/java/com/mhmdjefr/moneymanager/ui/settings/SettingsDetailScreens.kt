@@ -1,6 +1,7 @@
 package com.mhmdjefr.moneymanager.ui.settings
 
 import android.content.Context
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -207,14 +208,22 @@ fun AboutScreen(onBackClick: () -> Unit) {
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(48.dp))
-            Box(modifier = Modifier.size(80.dp).clip(RoundedCornerShape(20.dp)).background(SoftBlue), contentAlignment = Alignment.Center) {
-                Text("MM", color = Color.White, fontSize = 32.sp, fontWeight = FontWeight.Bold)
-            }
+            Image(
+                painter = androidx.compose.ui.res.painterResource(id = com.mhmdjefr.moneymanager.R.drawable.ic_money_logo),
+                contentDescription = "App Logo",
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                modifier = Modifier.size(80.dp)
+            )
             Spacer(modifier = Modifier.height(16.dp))
             Text("Money Manager", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-            Text("Version 1.0.0", fontSize = 14.sp, color = TextSecondary)
+            Text("Version 1.1.0", fontSize = 14.sp, color = TextSecondary)
             Spacer(modifier = Modifier.height(32.dp))
-            Text("Built with Kotlin & Jetpack Compose.", fontSize = 14.sp, color = TextSecondary)
+            Text(
+                "Track your income, expenses, and budgets all in one simple app.",
+                fontSize = 14.sp,
+                color = TextSecondary,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            )
         }
     }
 }
