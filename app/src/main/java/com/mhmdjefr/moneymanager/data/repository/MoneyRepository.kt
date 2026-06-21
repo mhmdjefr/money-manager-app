@@ -1,6 +1,7 @@
 package com.mhmdjefr.moneymanager.data.repository
 
 import com.mhmdjefr.moneymanager.data.local.AccountEntity
+import com.mhmdjefr.moneymanager.data.local.BudgetEntity
 import com.mhmdjefr.moneymanager.data.local.MoneyDao
 import com.mhmdjefr.moneymanager.data.local.TransactionEntity
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
@@ -48,7 +49,22 @@ class MoneyRepository(private val dao: MoneyDao) {
         withContext(Dispatchers.IO) { dao.updateCategory(category) }
     }
 
-    // Hapus seluruh transactions, accounts, dan categories.
+    // --- BUDGETS ---
+    fun getAllBudgets() = dao.getAllBudgets()
+
+    suspend fun insertBudget(budget: BudgetEntity) {
+        withContext(Dispatchers.IO) { dao.insertBudget(budget) }
+    }
+
+    suspend fun deleteBudget(budget: BudgetEntity) {
+        withContext(Dispatchers.IO) { dao.deleteBudget(budget) }
+    }
+
+    suspend fun deleteBudgetByCategoryId(categoryId: Int) {
+        withContext(Dispatchers.IO) { dao.deleteBudgetByCategoryId(categoryId) }
+    }
+
+    // Hapus seluruh transactions, accounts, categories, dan budgets.
     // Re-seed (akun default "Cash" + kategori default) ditangani di DashboardViewModel,
     // karena di sana juga perlu reset SharedPreferences (username/avatar).
     suspend fun resetAllData() {
@@ -56,6 +72,7 @@ class MoneyRepository(private val dao: MoneyDao) {
             dao.deleteAllTransactions()
             dao.deleteAllAccounts()
             dao.deleteAllCategories()
+            dao.deleteAllBudgets()
         }
     }
 }

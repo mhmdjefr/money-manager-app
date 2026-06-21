@@ -45,7 +45,7 @@ interface MoneyDao {
     @Delete
     fun deleteAccount(account: AccountEntity)
 
-    @Query("SELECT * FROM categories ORDER BY type, name ASC")
+    @Query("SELECT * FROM categories ORDER BY type, orderIndex ASC")
     fun getAllCategories(): Flow<List<CategoryEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -65,4 +65,20 @@ interface MoneyDao {
 
     @Query("DELETE FROM categories")
     suspend fun deleteAllCategories(): Int
+
+    // --- BUDGETS ---
+    @Query("SELECT * FROM budgets")
+    fun getAllBudgets(): Flow<List<BudgetEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertBudget(budget: BudgetEntity)
+
+    @Delete
+    suspend fun deleteBudget(budget: BudgetEntity)
+
+    @Query("DELETE FROM budgets WHERE categoryId = :categoryId")
+    suspend fun deleteBudgetByCategoryId(categoryId: Int)
+
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAllBudgets(): Int
 }
