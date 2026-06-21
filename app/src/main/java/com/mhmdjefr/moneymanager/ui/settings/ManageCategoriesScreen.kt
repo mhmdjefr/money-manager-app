@@ -1,12 +1,18 @@
 package com.mhmdjefr.moneymanager.ui.settings
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,16 +22,25 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.mhmdjefr.moneymanager.data.local.CategoryEntity
 import com.mhmdjefr.moneymanager.ui.common.ConfirmDeleteDialog
 import com.mhmdjefr.moneymanager.ui.theme.*
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
-// Kamus Ikon Lengkap
 val categoryIconsMap = mapOf(
     "Category" to Icons.Default.Category,
     "Fastfood" to Icons.Default.Fastfood,
@@ -52,12 +67,25 @@ val categoryIconsMap = mapOf(
     "Subscriptions" to Icons.Default.Subscriptions,
     "Spa" to Icons.Default.Spa,
     "Shield" to Icons.Default.Shield,
-    "VolunteerActivism" to Icons.Default.VolunteerActivism
+    "VolunteerActivism" to Icons.Default.VolunteerActivism,
+    "Wifi" to Icons.Default.Wifi,
+    "LocalGasStation" to Icons.Default.LocalGasStation,
+    "Build" to Icons.Default.Build,
+    "AccountBalance" to Icons.Default.AccountBalance,
+    "ChildCare" to Icons.Default.ChildCare,
+    "LocalLaundryService" to Icons.Default.LocalLaundryService,
+    "LocalParking" to Icons.Default.LocalParking,
+    "Redeem" to Icons.Default.Redeem
 )
 
-// Fungsi global untuk membaca ikon dari nama String-nya
 fun getCategoryIcon(iconName: String?): ImageVector {
     return categoryIconsMap[iconName] ?: Icons.Default.Category
+}
+
+private class AutoScrollState {
+    var listBoundsTop by mutableStateOf(0f)
+    var listBoundsBottom by mutableStateOf(0f)
+    var pointerYOnScreen by mutableStateOf<Float?>(null)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,15 +94,50 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
     val categories by viewModel.categories.collectAsState(initial = emptyList())
     var selectedTab by remember { mutableStateOf("EXPENSE") }
 
-    // Dialog State
     var showDialog by remember { mutableStateOf(false) }
     var editingCategory by remember { mutableStateOf<CategoryEntity?>(null) }
     var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
+    var categoryForBudget by remember { mutableStateOf<CategoryEntity?>(null) }
+    var inputBudgetAmount by remember { mutableStateOf("") }
     var inputName by remember { mutableStateOf("") }
-    var selectedIconName by remember { mutableStateOf("Category") } // Default icon
+    var selectedIconName by remember { mutableStateOf("Category") }
 
     val baseColor = if (selectedTab == "EXPENSE") ExpenseRed else Color(0xFF5ED5A8)
-    val currentCategories = categories.filter { it.type == selectedTab }
+
+    val mutableCategories = remember(categories, selectedTab) {
+        categories.filter { it.type == selectedTab }.sortedBy { it.orderIndex }.toMutableStateList()
+    }
+
+    val listState = rememberLazyListState()
+    val autoScrollState = remember { AutoScrollState() }
+    val density = LocalDensity.current
+
+    LaunchedEffect(Unit) {
+        coroutineScope {
+            while (isActive) {
+                val pointerY = autoScrollState.pointerYOnScreen
+                if (pointerY != null) {
+                    val edgeThreshold = with(density) { 80.dp.toPx() }
+                    val topEdge = autoScrollState.listBoundsTop + edgeThreshold
+                    val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+
+                    when {
+                        pointerY < topEdge -> {
+                            val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
+                            val speed = (distance / edgeThreshold) * 18f
+                            listState.scrollBy(-speed)
+                        }
+                        pointerY > bottomEdge -> {
+                            val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
+                            val speed = (distance / edgeThreshold) * 18f
+                            listState.scrollBy(speed)
+                        }
+                    }
+                }
+                delay(16L)
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -102,7 +165,6 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
     ) { paddingValues ->
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 24.dp)) {
 
-            // TABS
             Row(
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)
             ) {
@@ -122,55 +184,59 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                "Hold and drag to reorder",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
 
-            // LIST KATEGORI
-            if (currentCategories.isEmpty()) {
+            if (mutableCategories.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("No categories yet.", color = TextSecondary)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(currentCategories) { cat ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = CardWhite)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(baseColor.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    // Panggil fungsinya untuk nampilin ikon
-                                    Icon(getCategoryIcon(cat.iconName), contentDescription = null, tint = baseColor)
-                                }
-                                Spacer(modifier = Modifier.width(16.dp))
-                                Text(cat.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-
-                                // Action Buttons
-                                IconButton(onClick = {
-                                    editingCategory = cat
-                                    inputName = cat.name
-                                    selectedIconName = cat.iconName // Set ikon saat edit
-                                    showDialog = true
-                                }) { Icon(Icons.Default.Edit, contentDescription = "Edit", tint = SoftBlue) }
-
-                                IconButton(onClick = { categoryToDelete = cat }) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed)
-                                }
-                            }
+                LazyColumn(
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .onGloballyPositioned { coords ->
+                            val pos = coords.positionInRoot()
+                            autoScrollState.listBoundsTop = pos.y
+                            autoScrollState.listBoundsBottom = pos.y + coords.size.height
                         }
+                ) {
+                    itemsIndexed(mutableCategories, key = { _, cat -> cat.id }) { _, cat ->
+                        CategoryCard(
+                            category = cat,
+                            baseColor = baseColor,
+                            list = mutableCategories,
+                            autoScrollState = autoScrollState,
+                            onReorder = { from, to ->
+                                val item = mutableCategories.removeAt(from)
+                                mutableCategories.add(to, item)
+                            },
+                            onDragEnd = { viewModel.updateCategoriesOrder(mutableCategories) },
+                            onSetBudget = {
+                                categoryForBudget = cat
+                                inputBudgetAmount = ""
+                            },
+                            onEdit = {
+                                editingCategory = cat
+                                inputName = cat.name
+                                selectedIconName = cat.iconName
+                                showDialog = true
+                            },
+                            onDelete = { categoryToDelete = cat }
+                        )
                     }
                 }
             }
         }
     }
 
-    // DIALOG ADD/EDIT KATEGORI DENGAN ICON PICKER
     if (showDialog) {
         AlertDialog(
             onDismissRequest = { showDialog = false },
@@ -190,7 +256,6 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                     Text("Select Icon", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextSecondary)
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // ICON PICKER GRID HORIZONTAL
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
@@ -224,7 +289,8 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                                 id = editingCategory?.id ?: 0,
                                 name = inputName.trim(),
                                 type = selectedTab,
-                                iconName = selectedIconName // Simpan ikon yang dipilih ke database
+                                iconName = selectedIconName,
+                                orderIndex = editingCategory?.orderIndex ?: 0
                             )
                             viewModel.saveCategory(newCat)
                             showDialog = false
@@ -249,5 +315,159 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
             },
             onDismiss = { categoryToDelete = null }
         )
+    }
+
+    categoryForBudget?.let { cat ->
+        Dialog(onDismissRequest = { categoryForBudget = null }) {
+            Card(shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = CardWhite)) {
+                Column(modifier = Modifier.padding(24.dp)) {
+                    Text("Set Budget", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Monthly limit for \"${cat.name}\"", color = TextSecondary, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = inputBudgetAmount,
+                        onValueChange = { if (it.all { char -> char.isDigit() }) inputBudgetAmount = it },
+                        label = { Text("Monthly Limit (Rp)") },
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = {
+                            viewModel.deleteBudget(cat.id)
+                            categoryForBudget = null
+                        }) { Text("Remove Budget", color = ExpenseRed) }
+                        Spacer(modifier = Modifier.weight(1f))
+                        TextButton(onClick = { categoryForBudget = null }) { Text("Cancel", color = TextSecondary) }
+                        Button(
+                            onClick = {
+                                val amount = inputBudgetAmount.toDoubleOrNull()
+                                if (amount != null && amount > 0) {
+                                    viewModel.saveBudget(cat.id, amount)
+                                    categoryForBudget = null
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFB74D))
+                        ) { Text("Save") }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CategoryCard(
+    category: CategoryEntity,
+    baseColor: Color,
+    list: List<CategoryEntity>,
+    autoScrollState: Any,
+    onReorder: (from: Int, to: Int) -> Unit,
+    onDragEnd: () -> Unit,
+    onSetBudget: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var dragFromIndex by remember { mutableStateOf(-1) }
+    var accumulatedDragY by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var cardPositionY by remember { mutableStateOf(0f) }
+
+    val elevation by animateFloatAsState(
+        targetValue = if (isDragging) 12f else 0f,
+        animationSpec = tween(durationMillis = 150),
+        label = "categoryCardElevation"
+    )
+    val scale by animateFloatAsState(
+        targetValue = if (isDragging) 1.03f else 1f,
+        animationSpec = tween(durationMillis = 150),
+        label = "categoryCardScale"
+    )
+
+    val scrollState = autoScrollState as AutoScrollState
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(elevation = elevation.dp, shape = RoundedCornerShape(16.dp), clip = false)
+            .onGloballyPositioned { coords ->
+                cardPositionY = coords.positionInRoot().y
+            }
+            .pointerInput(category.id) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { offset ->
+                        dragFromIndex = list.indexOf(category)
+                        accumulatedDragY = 0f
+                        isDragging = true
+                        scrollState.pointerYOnScreen = cardPositionY + offset.y
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        accumulatedDragY += dragAmount.y
+                        scrollState.pointerYOnScreen = cardPositionY + change.position.y
+
+                        if (accumulatedDragY > 120f && dragFromIndex < list.size - 1) {
+                            val targetIndex = dragFromIndex + 1
+                            onReorder(dragFromIndex, targetIndex)
+                            dragFromIndex = targetIndex
+                            accumulatedDragY = 0f
+                        } else if (accumulatedDragY < -120f && dragFromIndex > 0) {
+                            val targetIndex = dragFromIndex - 1
+                            onReorder(dragFromIndex, targetIndex)
+                            dragFromIndex = targetIndex
+                            accumulatedDragY = 0f
+                        }
+                    },
+                    onDragEnd = {
+                        onDragEnd()
+                        dragFromIndex = -1
+                        isDragging = false
+                        scrollState.pointerYOnScreen = null
+                    },
+                    onDragCancel = {
+                        dragFromIndex = -1
+                        isDragging = false
+                        scrollState.pointerYOnScreen = null
+                    }
+                )
+            },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = CardWhite)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.size(48.dp).clip(CircleShape).background(baseColor.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(getCategoryIcon(category.iconName), contentDescription = null, tint = baseColor)
+            }
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(category.name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+
+            if (category.type == "EXPENSE") {
+                IconButton(onClick = onSetBudget) {
+                    Icon(Icons.Default.Savings, contentDescription = "Set Budget", tint = Color(0xFFFFB74D))
+                }
+            }
+
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = SoftBlue)
+            }
+
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = ExpenseRed)
+            }
+
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(Icons.Default.Menu, contentDescription = "Drag indicator", tint = TextSecondary.copy(alpha = 0.5f), modifier = Modifier.size(18.dp))
+        }
     }
 }
