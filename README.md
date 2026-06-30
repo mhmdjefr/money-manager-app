@@ -126,4 +126,4 @@ This project does not currently specify a license. All rights reserved by the au
 
 ---
 
-Built with ❤️ by [mhmdjefr](https://github.com/mhmdjefr)
+Built by [mhmdjefr](https://github.com/mhmdjefr)
