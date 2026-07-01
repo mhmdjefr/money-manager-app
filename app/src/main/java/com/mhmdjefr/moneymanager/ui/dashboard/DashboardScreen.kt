@@ -260,7 +260,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                     }
                 }
             } else {
-                // Logika Grouping Berdasarkan Tanggal
+                // Logika Grouping Berdasarkan Tanggal (Optimal tanpa error Compose)
                 val groupedTransactions = finalFilteredTransactions
                     .sortedByDescending { it.date }
                     .groupBy { tx ->
@@ -274,13 +274,18 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                             else -> java.text.SimpleDateFormat("dd MMM yyyy", Locale.US).format(tx.date)
                         }
                     }
+                    .mapValues { (_, txList) ->
+                        // Kalkulasi dieksekusi di luar 'item' biar scroll tetep mulus 60fps
+                        val dIncome = txList.filter { it.type == "INCOME" }.sumOf { it.amount }
+                        val dExpense = txList.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+                        Triple(txList, dIncome, dExpense)
+                    }
 
                 // Render setiap kelompok tanggal beserta transaksinya
-                groupedTransactions.forEach { (dateHeader, txList) ->
-                    item {
-                        val dayIncome = txList.filter { it.type == "INCOME" }.sumOf { it.amount }
-                        val dayExpense = txList.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+                groupedTransactions.forEach { (dateHeader, data) ->
+                    val (txList, dayIncome, dayExpense) = data
 
+                    item {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -295,15 +300,15 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                 fontWeight = FontWeight.Bold
                             )
                             Row {
-                                if (dayIncome > 0) {
+                                if (dayIncome > 0.0) {
                                     Text(
-                                        text = "+${format.format(dayIncome)}",
+                                        text = "+ ${formatRp(dayIncome)}",
                                         color = incomeColor,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (dayIncome > 0 && dayExpense > 0) {
+                                if (dayIncome > 0.0 && dayExpense > 0.0) {
                                     Text(
                                         text = "  •  ",
                                         color = TextSecondary,
@@ -311,9 +316,9 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (dayExpense > 0) {
+                                if (dayExpense > 0.0) {
                                     Text(
-                                        text = "-${format.format(dayExpense)}",
+                                        text = "- ${formatRp(dayExpense)}",
                                         color = ExpenseRed,
                                         fontSize = 13.sp,
                                         fontWeight = FontWeight.Bold
@@ -331,8 +336,6 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                         val sign = if (isIncome) "+" else if (isTransfer) "" else "-"
 
                         val categoryName = if (isTransfer) "Transfer" else tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotEmpty() } ?: "Others"
-
-// TAMBAHIN BARIS INI: Nyari kategori berdasarkan namanya
                         val categoryEntity = allCategories.find { it.name == categoryName }
 
                         Card(
@@ -351,11 +354,9 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                     modifier = Modifier.size(48.dp).clip(CircleShape).background(txColor.copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    // UBAH BARIS INI: Panggil categoryEntity?.iconName
                                     val iconToUse = if (isTransfer) Icons.Default.SyncAlt else getCategoryIcon(categoryEntity?.iconName)
                                     Icon(iconToUse, contentDescription = null, tint = txColor)
                                 }
-// ...
                                 Spacer(modifier = Modifier.width(16.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(categoryName, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -369,7 +370,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                     }
                                 }
                                 Text(
-                                    text = "$sign Rp ${format.format(tx.amount)}",
+                                    text = "$sign ${formatRp(tx.amount)}",
                                     color = txColor,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Bold
