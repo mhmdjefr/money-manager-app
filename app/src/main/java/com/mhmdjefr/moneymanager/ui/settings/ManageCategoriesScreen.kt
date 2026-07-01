@@ -86,12 +86,14 @@ private class AutoScrollState {
     var listBoundsTop by mutableStateOf(0f)
     var listBoundsBottom by mutableStateOf(0f)
     var pointerYOnScreen by mutableStateOf<Float?>(null)
+    var isDragging by mutableStateOf(false)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: () -> Unit) {
     val categories by viewModel.categories.collectAsState(initial = emptyList())
+    val allBudgets by viewModel.allBudgets.collectAsState(initial = emptyList())
     var selectedTab by remember { mutableStateOf("EXPENSE") }
 
     var showDialog by remember { mutableStateOf(false) }
@@ -112,30 +114,30 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
     val autoScrollState = remember { AutoScrollState() }
     val density = LocalDensity.current
 
-    LaunchedEffect(Unit) {
-        coroutineScope {
-            while (isActive) {
-                val pointerY = autoScrollState.pointerYOnScreen
-                if (pointerY != null) {
-                    val edgeThreshold = with(density) { 80.dp.toPx() }
-                    val topEdge = autoScrollState.listBoundsTop + edgeThreshold
-                    val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+    LaunchedEffect(autoScrollState.isDragging) {
+        if (!autoScrollState.isDragging) return@LaunchedEffect
 
-                    when {
-                        pointerY < topEdge -> {
-                            val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
-                            val speed = (distance / edgeThreshold) * 18f
-                            listState.scrollBy(-speed)
-                        }
-                        pointerY > bottomEdge -> {
-                            val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
-                            val speed = (distance / edgeThreshold) * 18f
-                            listState.scrollBy(speed)
-                        }
+        while (isActive && autoScrollState.isDragging) {
+            val pointerY = autoScrollState.pointerYOnScreen
+            if (pointerY != null) {
+                val edgeThreshold = with(density) { 80.dp.toPx() }
+                val topEdge = autoScrollState.listBoundsTop + edgeThreshold
+                val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+
+                when {
+                    pointerY < topEdge -> {
+                        val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
+                        val speed = (distance / edgeThreshold) * 18f
+                        listState.scrollBy(-speed)
+                    }
+                    pointerY > bottomEdge -> {
+                        val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
+                        val speed = (distance / edgeThreshold) * 18f
+                        listState.scrollBy(speed)
                     }
                 }
-                delay(16L)
             }
+            delay(16L)
         }
     }
 
@@ -212,6 +214,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                         CategoryCard(
                             category = cat,
                             baseColor = baseColor,
+                            hasBudget = allBudgets.any { it.categoryId == cat.id },
                             list = mutableCategories,
                             autoScrollState = autoScrollState,
                             onReorder = { from, to ->
@@ -330,6 +333,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
                         onValueChange = { if (it.all { char -> char.isDigit() }) inputBudgetAmount = it },
                         label = { Text("Monthly Limit (Rp)") },
                         keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+                        visualTransformation = com.mhmdjefr.moneymanager.ui.wallet.RupiahVisualTransformation(),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(24.dp))
@@ -361,6 +365,7 @@ fun ManageCategoriesScreen(viewModel: ManageCategoriesViewModel, onBackClick: ()
 private fun CategoryCard(
     category: CategoryEntity,
     baseColor: Color,
+    hasBudget: Boolean,
     list: List<CategoryEntity>,
     autoScrollState: Any,
     onReorder: (from: Int, to: Int) -> Unit,
@@ -404,6 +409,7 @@ private fun CategoryCard(
                         dragFromIndex = list.indexOf(category)
                         accumulatedDragY = 0f
                         isDragging = true
+                        scrollState.isDragging = true
                         scrollState.pointerYOnScreen = cardPositionY + offset.y
                     },
                     onDrag = { change, dragAmount ->
@@ -427,11 +433,13 @@ private fun CategoryCard(
                         onDragEnd()
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.isDragging = false
                         scrollState.pointerYOnScreen = null
                     },
                     onDragCancel = {
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.isDragging = false
                         scrollState.pointerYOnScreen = null
                     }
                 )
@@ -454,7 +462,19 @@ private fun CategoryCard(
 
             if (category.type == "EXPENSE") {
                 IconButton(onClick = onSetBudget) {
-                    Icon(Icons.Default.Savings, contentDescription = "Set Budget", tint = Color(0xFFFFB74D))
+                    if (hasBudget) {
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFFFB74D)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.Savings, contentDescription = "Budget set", tint = Color.White, modifier = Modifier.size(16.dp))
+                        }
+                    } else {
+                        Icon(Icons.Default.Savings, contentDescription = "Set Budget", tint = TextSecondary.copy(alpha = 0.4f))
+                    }
                 }
             }
 

@@ -5,6 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -38,7 +44,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int = -1, onBackClick: () -> Unit) {
     val context = LocalContext.current
@@ -67,6 +73,7 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
     var showDatePicker by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+    val notesBringIntoViewRequester = remember { BringIntoViewRequester() }
     val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.US)
 
     // Pre-fill data saat Edit Mode
@@ -132,6 +139,8 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .imePadding()
+                .verticalScroll(rememberScrollState())
         ) {
             // 1. TABS
             Row(
@@ -290,7 +299,9 @@ fun AddTransactionScreen(viewModel: AddTransactionViewModel, transactionId: Int 
                     value = note,
                     onValueChange = { note = it },
                     placeholder = { Text("Add notes (Optional)", color = TextSecondary) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .bringIntoViewRequester(notesBringIntoViewRequester),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = baseColor, unfocusedBorderColor = Color(0xFFE0E0E0))
                 )

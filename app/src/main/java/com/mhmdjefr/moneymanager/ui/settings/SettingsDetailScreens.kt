@@ -209,7 +209,7 @@ fun AboutScreen(onBackClick: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().padding(paddingValues).padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Spacer(modifier = Modifier.height(48.dp))
             Image(
-                painter = androidx.compose.ui.res.painterResource(id = com.mhmdjefr.moneymanager.R.drawable.ic_money_logo),
+                painter = androidx.compose.ui.res.painterResource(id = com.mhmdjefr.moneymanager.R.drawable.splash_icon),
                 contentDescription = "App Logo",
                 contentScale = androidx.compose.ui.layout.ContentScale.Fit,
                 modifier = Modifier.size(80.dp)

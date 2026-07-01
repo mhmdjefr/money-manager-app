@@ -164,7 +164,10 @@ class MainActivity : ComponentActivity() {
 
                         composable("wallet") { WalletScreen(viewModel = dashboardViewModel) }
                         composable("statistic") {
-                            StatsScreen(viewModel = dashboardViewModel)
+                            StatsScreen(
+                                viewModel = dashboardViewModel,
+                                onNavigateToCategories = { navController.navigate("manage_categories") }
+                            )
                         }
                         composable("settings") {
                             SettingsScreen(

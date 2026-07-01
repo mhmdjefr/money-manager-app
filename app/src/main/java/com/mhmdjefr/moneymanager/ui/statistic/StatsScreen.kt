@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.Savings
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -41,7 +43,7 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 
 @Composable
-fun StatsScreen(viewModel: DashboardViewModel) {
+fun StatsScreen(viewModel: DashboardViewModel, onNavigateToCategories: () -> Unit = {}) {
     val rawTransactions by viewModel.monthlyTransactions.collectAsState(initial = emptyList())
     val rawPreviousMonthTransactions by viewModel.previousMonthTransactions.collectAsState(initial = emptyList())
     val currentMonth by viewModel.currentMonth.collectAsState()
@@ -60,19 +62,23 @@ fun StatsScreen(viewModel: DashboardViewModel) {
     val transactions = rawTransactions.filter { selectedWalletId == null || it.accountId == selectedWalletId }
     val previousMonthTransactions = rawPreviousMonthTransactions.filter { selectedWalletId == null || it.accountId == selectedWalletId }
 
-    val filteredTransactions = transactions.filter { it.type == selectedTab }
-    val totalAmount = filteredTransactions.sumOf { it.amount }
+    val filteredTransactions = remember(transactions, selectedTab) {
+        transactions.filter { it.type == selectedTab }
+    }
+    val totalAmount = remember(filteredTransactions) { filteredTransactions.sumOf { it.amount } }
 
     // Perbandingan dengan bulan sebelumnya
     val previousTotalAmount = previousMonthTransactions.filter { it.type == selectedTab }.sumOf { it.amount }
     val diffAmount = totalAmount - previousTotalAmount
     val diffPercentage = if (previousTotalAmount > 0) (diffAmount / previousTotalAmount) * 100 else null
 
-    val categoryTotals = filteredTransactions.groupBy { tx ->
-        tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotBlank() } ?: "Others"
-    }.mapValues { entry ->
-        entry.value.sumOf { it.amount }
-    }.toList().sortedByDescending { it.second }
+    val categoryTotals = remember(filteredTransactions) {
+        filteredTransactions.groupBy { tx ->
+            tx.note?.substringBefore("]")?.replace("[", "")?.trim()?.takeIf { it.isNotBlank() } ?: "Others"
+        }.mapValues { entry ->
+            entry.value.sumOf { it.amount }
+        }.toList().sortedByDescending { it.second }
+    }
 
     val formatRp = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.US)
@@ -173,15 +179,39 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // --- BUDGET STATUS ---
-                if (budgetProgressList.isNotEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = CardWhite)
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Budget Status", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
-                            Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = CardWhite)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Budget Status", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TextPrimary)
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (budgetProgressList.isEmpty()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable { onNavigateToCategories() }
+                                    .background(Color(0xFFFFB74D).copy(alpha = 0.1f))
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(36.dp).clip(CircleShape).background(Color(0xFFFFB74D).copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Savings, contentDescription = null, tint = Color(0xFFFFB74D), modifier = Modifier.size(18.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Set your first budget", color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    Text("Track spending limits per category", color = TextSecondary, fontSize = 11.sp)
+                                }
+                                Icon(Icons.Default.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                            }
+                        } else {
                             budgetProgressList.forEach { budget ->
                                 val progressColor = when {
                                     budget.percentage >= 1f -> ExpenseRed
@@ -211,8 +241,8 @@ fun StatsScreen(viewModel: DashboardViewModel) {
                             }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
                 }
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(CardWhite).padding(4.dp)

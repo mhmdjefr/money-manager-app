@@ -42,20 +42,18 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
     // 1. Ambil hasil search lintas-bulan (hanya terisi saat user sedang mengetik query).
     //    Saat query kosong, balik ke transaksi bulan aktif seperti biasa.
     val searchResults by viewModel.searchResults.collectAsState(initial = emptyList())
-    val searchedTransactions = if (searchQuery.isBlank()) monthlyTransactions else searchResults
+    val selectedWalletId by viewModel.selectedWalletId.collectAsState()
 
-    // 2. State untuk nyimpen filter dompet yang lagi aktif
-    var selectedWalletId by remember { mutableStateOf<Int?>(null) }
-
-    // Reset filter wallet setiap kali bulan aktif berubah, supaya tidak
-    // membingungkan user saat pindah bulan tapi filter lama masih nyala.
+    // Reset filter wallet setiap kali bulan aktif berubah
     LaunchedEffect(currentMonth) {
-        selectedWalletId = null
+        viewModel.setSelectedWalletId(null)
     }
 
-    // 3. Terapin filter dompet ke data yang udah melewati Search Bar
-    val finalFilteredTransactions = searchedTransactions.filter { tx ->
-        selectedWalletId == null || tx.accountId == selectedWalletId || tx.targetAccountId == selectedWalletId
+    // 2. Terapin filter dompet ke data yang udah melewati Search Bar
+    val baseTransactions = if (searchQuery.isBlank()) monthlyTransactions else searchResults
+    val finalFilteredTransactions = if (selectedWalletId == null) baseTransactions
+    else baseTransactions.filter { tx ->
+        tx.accountId == selectedWalletId || tx.targetAccountId == selectedWalletId
     }
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -68,8 +66,11 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
 
     fun formatRp(amount: Double) = if (isBalanceVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
 
-    val monthlyIncome = monthlyTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
-    val monthlyExpense = monthlyTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+    val (monthlyIncome, monthlyExpense) = remember(monthlyTransactions) {
+        val income = monthlyTransactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+        val expense = monthlyTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+        income to expense
+    }
 
     Scaffold(
         containerColor = LightBackground
@@ -220,7 +221,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isSelected) SoftBlue else CardWhite)
                                 .border(1.dp, if (isSelected) SoftBlue else Color(0xFFE0E0E0), RoundedCornerShape(20.dp))
-                                .clickable { selectedWalletId = null }
+                                .clickable { viewModel.setSelectedWalletId(null) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -235,7 +236,7 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                                 .clip(RoundedCornerShape(20.dp))
                                 .background(if (isSelected) SoftBlue else CardWhite)
                                 .border(1.dp, if (isSelected) SoftBlue else Color(0xFFE0E0E0), RoundedCornerShape(20.dp))
-                                .clickable { selectedWalletId = acc.id }
+                                .clickable { viewModel.setSelectedWalletId(acc.id) }
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             contentAlignment = Alignment.Center
                         ) {
@@ -277,13 +278,49 @@ fun DashboardScreen(viewModel: DashboardViewModel, onNavigateToEdit: (Int) -> Un
                 // Render setiap kelompok tanggal beserta transaksinya
                 groupedTransactions.forEach { (dateHeader, txList) ->
                     item {
-                        Text(
-                            text = dateHeader,
-                            color = TextSecondary,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-                        )
+                        val dayIncome = txList.filter { it.type == "INCOME" }.sumOf { it.amount }
+                        val dayExpense = txList.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp, bottom = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = dateHeader,
+                                color = TextSecondary,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Row {
+                                if (dayIncome > 0) {
+                                    Text(
+                                        text = "+${format.format(dayIncome)}",
+                                        color = incomeColor,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (dayIncome > 0 && dayExpense > 0) {
+                                    Text(
+                                        text = "  •  ",
+                                        color = TextSecondary,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                if (dayExpense > 0) {
+                                    Text(
+                                        text = "-${format.format(dayExpense)}",
+                                        color = ExpenseRed,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     items(txList) { tx ->

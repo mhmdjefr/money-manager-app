@@ -57,12 +57,13 @@ private class AutoScrollState {
     var listBoundsTop by mutableStateOf(0f)
     var listBoundsBottom by mutableStateOf(0f)
     var pointerYOnScreen by mutableStateOf<Float?>(null)
+    var isDragging by mutableStateOf(false)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun WalletScreen(viewModel: DashboardViewModel) {
-    val accounts by viewModel.accountList.collectAsState(initial = emptyList())
+    val accounts by viewModel.accounts.collectAsState(initial = emptyList())
     val transactions by viewModel.allTransactions.collectAsState(initial = emptyList())
     val isVisible by viewModel.isBalanceVisible.collectAsState()
 
@@ -77,16 +78,28 @@ fun WalletScreen(viewModel: DashboardViewModel) {
     val format = NumberFormat.getNumberInstance(Locale.forLanguageTag("id-ID"))
     fun formatRp(amount: Double) = if (isVisible) "Rp ${format.format(amount)}" else "Rp ••••••••"
 
+    // Pre-compute balance semua akun sekali jalan (O(n)), bukan filter berulang
+    // per akun (O(n x m)) yang sebelumnya dipanggil ulang juga di tiap WalletCard.
+    val accountBalances = remember(accounts, transactions) {
+        val incomeByAccount = transactions.filter { it.type == "INCOME" }.groupBy { it.accountId }
+        val expenseByAccount = transactions.filter { it.type == "EXPENSE" }.groupBy { it.accountId }
+        val transferOutByAccount = transactions.filter { it.type == "TRANSFER" }.groupBy { it.accountId }
+        val transferInByAccount = transactions.filter { it.type == "TRANSFER" }.groupBy { it.targetAccountId }
+
+        accounts.associate { account ->
+            val income = incomeByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+            val expense = expenseByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+            val transferOut = transferOutByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+            val transferIn = transferInByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+            account.id to (account.initialBalance + income - expense - transferOut + transferIn)
+        }
+    }
+
     var totalAssets = 0.0
     var totalLiabilities = 0.0
 
     accounts.forEach { account ->
-        val income = transactions.filter { it.accountId == account.id && it.type == "INCOME" }.sumOf { it.amount }
-        val expense = transactions.filter { it.accountId == account.id && it.type == "EXPENSE" }.sumOf { it.amount }
-        val transferOut = transactions.filter { it.accountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
-        val transferIn = transactions.filter { it.targetAccountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
-
-        val currentBalance = account.initialBalance + income - expense - transferOut + transferIn
+        val currentBalance = accountBalances[account.id] ?: account.initialBalance
         if (account.includeInTotal) {
             if (account.type == "REGULAR") totalAssets += currentBalance
             else totalLiabilities += currentBalance
@@ -113,30 +126,34 @@ fun WalletScreen(viewModel: DashboardViewModel) {
     val autoScrollState = remember { AutoScrollState() }
     val density = LocalDensity.current
 
-    LaunchedEffect(Unit) {
-        coroutineScope {
-            while (isActive) {
-                val pointerY = autoScrollState.pointerYOnScreen
-                if (pointerY != null) {
-                    val edgeThreshold = with(density) { 80.dp.toPx() }
-                    val topEdge = autoScrollState.listBoundsTop + edgeThreshold
-                    val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+    // Loop auto-scroll HANYA dibuat selama isDragging true. LaunchedEffect akan
+    // otomatis membatalkan coroutine lama dan membuat yang baru setiap kali key
+    // (isDragging) berubah -- jadi saat drag berhenti, tidak ada loop polling
+    // yang terus berjalan di background.
+    LaunchedEffect(autoScrollState.isDragging) {
+        if (!autoScrollState.isDragging) return@LaunchedEffect
 
-                    when {
-                        pointerY < topEdge -> {
-                            val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
-                            val speed = (distance / edgeThreshold) * 18f
-                            listState.scrollBy(-speed)
-                        }
-                        pointerY > bottomEdge -> {
-                            val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
-                            val speed = (distance / edgeThreshold) * 18f
-                            listState.scrollBy(speed)
-                        }
+        while (isActive && autoScrollState.isDragging) {
+            val pointerY = autoScrollState.pointerYOnScreen
+            if (pointerY != null) {
+                val edgeThreshold = with(density) { 80.dp.toPx() }
+                val topEdge = autoScrollState.listBoundsTop + edgeThreshold
+                val bottomEdge = autoScrollState.listBoundsBottom - edgeThreshold
+
+                when {
+                    pointerY < topEdge -> {
+                        val distance = (topEdge - pointerY).coerceAtMost(edgeThreshold)
+                        val speed = (distance / edgeThreshold) * 18f
+                        listState.scrollBy(-speed)
+                    }
+                    pointerY > bottomEdge -> {
+                        val distance = (pointerY - bottomEdge).coerceAtMost(edgeThreshold)
+                        val speed = (distance / edgeThreshold) * 18f
+                        listState.scrollBy(speed)
                     }
                 }
-                delay(16L)
             }
+            delay(16L)
         }
     }
 
@@ -295,7 +312,7 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                         Column {
                             WalletCard(
                                 account = account,
-                                transactions = transactions,
+                                currentBalance = accountBalances[account.id] ?: account.initialBalance,
                                 formatRp = ::formatRp,
                                 onClick = {
                                     selectedAccount = account
@@ -333,7 +350,7 @@ fun WalletScreen(viewModel: DashboardViewModel) {
                     itemsIndexed(mutableLiabilities, key = { _, account -> "liability_${account.id}" }) { _, account ->
                         WalletCard(
                             account = account,
-                            transactions = transactions,
+                            currentBalance = accountBalances[account.id] ?: account.initialBalance,
                             formatRp = ::formatRp,
                             onClick = {
                                 selectedAccount = account
@@ -375,7 +392,7 @@ private fun SectionHeader(title: String, icon: androidx.compose.ui.graphics.vect
 @Composable
 private fun WalletCard(
     account: AccountEntity,
-    transactions: List<com.mhmdjefr.moneymanager.data.local.TransactionEntity>,
+    currentBalance: Double,
     formatRp: (Double) -> String,
     onClick: () -> Unit,
     onReorder: (from: Int, to: Int) -> Unit,
@@ -399,12 +416,6 @@ private fun WalletCard(
         label = "cardScale"
     )
 
-    val income = transactions.filter { it.accountId == account.id && it.type == "INCOME" }.sumOf { it.amount }
-    val expense = transactions.filter { it.accountId == account.id && it.type == "EXPENSE" }.sumOf { it.amount }
-    val transferOut = transactions.filter { it.accountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
-    val transferIn = transactions.filter { it.targetAccountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
-    val currentBalance = account.initialBalance + income - expense - transferOut + transferIn
-
     val scrollState = autoScrollState as AutoScrollState
 
     Card(
@@ -424,6 +435,7 @@ private fun WalletCard(
                         dragFromIndex = list.indexOf(account)
                         accumulatedDragY = 0f
                         isDragging = true
+                        scrollState.isDragging = true
                         scrollState.pointerYOnScreen = cardPositionY + offset.y
                     },
                     onDrag = { change, dragAmount ->
@@ -447,11 +459,13 @@ private fun WalletCard(
                         onDragEnd()
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.isDragging = false
                         scrollState.pointerYOnScreen = null
                     },
                     onDragCancel = {
                         dragFromIndex = -1
                         isDragging = false
+                        scrollState.isDragging = false
                         scrollState.pointerYOnScreen = null
                     }
                 )

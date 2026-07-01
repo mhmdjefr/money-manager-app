@@ -23,6 +23,13 @@ import java.util.Calendar
 
 class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() {
 
+    // Semua Flow "sumber" di-stateIn agar di-SHARE antar seluruh Composable yang
+    // collect (Dashboard, Wallet, Stats, dst), bukan dihitung ulang dari nol untuk
+    // setiap subscriber baru. WhileSubscribed(5000) menjaga Flow tetap hidup 5 detik
+    // setelah subscriber terakhir hilang -- supaya pindah-pindah screen cepat tidak
+    // memicu re-query database berulang kali.
+    private val sharingConfig = SharingStarted.WhileSubscribed(5000)
+
     private val _currentMonth = MutableStateFlow(Calendar.getInstance())
     val currentMonth: StateFlow<Calendar> = _currentMonth.asStateFlow()
 
@@ -32,34 +39,48 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val accountList: Flow<List<AccountEntity>> = repository.getAllAccounts()
+    private val _selectedWalletId = MutableStateFlow<Int?>(null)
+    val selectedWalletId: StateFlow<Int?> = _selectedWalletId.asStateFlow()
+    fun setSelectedWalletId(id: Int?) { _selectedWalletId.value = id }
 
-    val accounts: Flow<List<AccountEntity>> = repository.getAllAccounts()
-    val allTransactions: Flow<List<TransactionEntity>> = repository.getAllTransactions()
-    val allCategories: Flow<List<CategoryEntity>> = repository.getAllCategories()
-    val allBudgets: Flow<List<BudgetEntity>> = repository.getAllBudgets()
+    // Satu sumber data akun (sebelumnya ada accountList + accounts yang duplikat
+    // dan masing-masing query database sendiri-sendiri).
+    val accounts: StateFlow<List<AccountEntity>> = repository.getAllAccounts()
+        .stateIn(viewModelScope, sharingConfig, emptyList())
 
-    val totalBalance: Flow<Double> = combine(
-        accountList,
+    val allTransactions: StateFlow<List<TransactionEntity>> = repository.getAllTransactions()
+        .stateIn(viewModelScope, sharingConfig, emptyList())
+
+    val allCategories: StateFlow<List<CategoryEntity>> = repository.getAllCategories()
+        .stateIn(viewModelScope, sharingConfig, emptyList())
+
+    val allBudgets: StateFlow<List<BudgetEntity>> = repository.getAllBudgets()
+        .stateIn(viewModelScope, sharingConfig, emptyList())
+
+    val totalBalance: StateFlow<Double> = combine(
+        accounts,
         allTransactions
-    ) { accounts, transactions ->
+    ) { accountsList, transactions ->
         var netWorth = 0.0
-        accounts.forEach { account ->
-            if (account.includeInTotal) {
-                val income = transactions.filter { it.accountId == account.id && it.type == "INCOME" }.sumOf { it.amount }
-                val expense = transactions.filter { it.accountId == account.id && it.type == "EXPENSE" }.sumOf { it.amount }
-                val transferOut = transactions.filter { it.accountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
-                val transferIn = transactions.filter { it.targetAccountId == account.id && it.type == "TRANSFER" }.sumOf { it.amount }
+        val incomeByAccount = transactions.filter { it.type == "INCOME" }.groupBy { it.accountId }
+        val expenseByAccount = transactions.filter { it.type == "EXPENSE" }.groupBy { it.accountId }
+        val transferOutByAccount = transactions.filter { it.type == "TRANSFER" }.groupBy { it.accountId }
+        val transferInByAccount = transactions.filter { it.type == "TRANSFER" }.groupBy { it.targetAccountId }
 
-                val currentBalance = account.initialBalance + income - expense - transferOut + transferIn
-                netWorth += currentBalance
+        accountsList.forEach { account ->
+            if (account.includeInTotal) {
+                val income = incomeByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+                val expense = expenseByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+                val transferOut = transferOutByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+                val transferIn = transferInByAccount[account.id]?.sumOf { it.amount } ?: 0.0
+                netWorth += account.initialBalance + income - expense - transferOut + transferIn
             }
         }
         netWorth
-    }
+    }.stateIn(viewModelScope, sharingConfig, 0.0)
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val monthlyTransactions: Flow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
+    val monthlyTransactions: StateFlow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
         val start = calendar.clone() as Calendar
         start.set(Calendar.DAY_OF_MONTH, 1)
         start.set(Calendar.HOUR_OF_DAY, 0)
@@ -73,24 +94,24 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         end.set(Calendar.SECOND, 59)
 
         repository.getTransactionsByDateRange(start.timeInMillis, end.timeInMillis)
-    }
+    }.stateIn(viewModelScope, sharingConfig, emptyList())
 
     // Gabungan budget + spending aktual bulan berjalan, dihitung berdasarkan
     // note transaksi yang diawali "[NamaKategori]" (pola yang sama dipakai di Dashboard/Stats).
-    val budgetProgressList: Flow<List<BudgetProgress>> = combine(
+    val budgetProgressList: StateFlow<List<BudgetProgress>> = combine(
         allBudgets,
         allCategories,
         monthlyTransactions
     ) { budgets, categories, transactions ->
+        if (budgets.isEmpty()) return@combine emptyList()
+
+        val expenseByCategory = transactions
+            .filter { it.type == "EXPENSE" }
+            .groupBy { tx -> tx.note?.substringBefore("]")?.replace("[", "")?.trim() }
+
         budgets.mapNotNull { budget ->
             val category = categories.find { it.id == budget.categoryId } ?: return@mapNotNull null
-            val spent = transactions
-                .filter { it.type == "EXPENSE" }
-                .filter { tx ->
-                    val txCategoryName = tx.note?.substringBefore("]")?.replace("[", "")?.trim()
-                    txCategoryName == category.name
-                }
-                .sumOf { it.amount }
+            val spent = expenseByCategory[category.name]?.sumOf { it.amount } ?: 0.0
 
             BudgetProgress(
                 categoryId = category.id,
@@ -100,11 +121,11 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                 spentAmount = spent
             )
         }
-    }
+    }.stateIn(viewModelScope, sharingConfig, emptyList())
 
     // Transaksi bulan SEBELUMNYA dari currentMonth, dipakai untuk perbandingan tren di Stats.
     @OptIn(ExperimentalCoroutinesApi::class)
-    val previousMonthTransactions: Flow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
+    val previousMonthTransactions: StateFlow<List<TransactionEntity>> = _currentMonth.flatMapLatest { calendar ->
         val prevCal = calendar.clone() as Calendar
         prevCal.add(Calendar.MONTH, -1)
 
@@ -121,24 +142,27 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         end.set(Calendar.SECOND, 59)
 
         repository.getTransactionsByDateRange(start.timeInMillis, end.timeInMillis)
-    }
+    }.stateIn(viewModelScope, sharingConfig, emptyList())
 
     // Search lintas SEMUA transaksi (tidak terbatas bulan aktif), berbeda dari
     // monthlyTransactions yang dipakai untuk ringkasan income/expense bulan berjalan.
-    val searchResults: Flow<List<TransactionEntity>> = combine(
+    val searchResults: StateFlow<List<TransactionEntity>> = combine(
         allTransactions,
-        _searchQuery
-    ) { transactions, query ->
+        _searchQuery,
+        _selectedWalletId
+    ) { transactions, query, walletId ->
         if (query.isBlank()) {
             emptyList()
         } else {
             transactions.filter { tx ->
                 val categoryName = tx.note?.substringBefore("]")?.replace("[", "") ?: ""
                 val realNote = tx.note?.substringAfter("]") ?: ""
-                categoryName.contains(query, ignoreCase = true) || realNote.contains(query, ignoreCase = true)
+                val matchesQuery = categoryName.contains(query, ignoreCase = true) || realNote.contains(query, ignoreCase = true)
+                val matchesWallet = walletId == null || tx.accountId == walletId || tx.targetAccountId == walletId
+                matchesQuery && matchesWallet
             }.sortedByDescending { it.date }
         }
-    }
+    }.stateIn(viewModelScope, sharingConfig, emptyList())
 
     // --- EXPORT CSV (Profile + Accounts + Categories + Transactions) ---
     fun exportToCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
@@ -155,13 +179,11 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                 val outputStream: OutputStream? = context.contentResolver.openOutputStream(uri)
                 outputStream?.writer()?.use { writer ->
 
-                    // --- PROFILE ---
                     writer.write("# PROFILE\n")
                     writer.write("Name,Avatar\n")
                     writer.write("\"${userName}\",${userAvatar}\n")
                     writer.write("\n")
 
-                    // --- ACCOUNTS ---
                     writer.write("# ACCOUNTS\n")
                     writer.write("ID,Name,InitialBalance,Type,IncludeInTotal,OrderIndex\n")
                     accountsList.forEach { acc ->
@@ -169,7 +191,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     }
                     writer.write("\n")
 
-                    // --- CATEGORIES ---
                     writer.write("# CATEGORIES\n")
                     writer.write("ID,Name,Type,IconName\n")
                     categoriesList.forEach { cat ->
@@ -177,7 +198,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     }
                     writer.write("\n")
 
-                    // --- TRANSACTIONS ---
                     writer.write("# TRANSACTIONS\n")
                     writer.write("ID,Account_ID,Amount,Type,Date,Note,Target_Account_ID\n")
                     txList.forEach { tx ->
@@ -239,9 +259,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                             val includeInTotal = row[4].toBooleanStrictOrNull() ?: true
                             val orderIndex = row[5].toIntOrNull() ?: 0
 
-                            // Jika akun dengan nama+type yang sama sudah ada, UPDATE datanya
-                            // (termasuk saldo) alih-alih melewatinya. Ini penting untuk skenario
-                            // "reset data lalu restore dari CSV" agar saldo benar-benar kembali.
                             val existing = existingAccounts.find { it.name == name && it.type == type }
                             if (existing != null) {
                                 repository.insertAccount(
@@ -277,7 +294,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                             val type = row[2]
                             val iconName = row[3]
 
-                            // Sama seperti accounts: update jika sudah ada, bukan skip.
                             val existing = existingCategories.find { it.name == name && it.type == type }
                             if (existing != null) {
                                 repository.updateCategory(existing.copy(iconName = iconName))
@@ -391,8 +407,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
 
     fun saveBudget(categoryId: Int, limitAmount: Double) {
         viewModelScope.launch {
-            // Hapus budget lama untuk kategori ini dulu (kalau ada), baru insert yang baru.
-            // Ini menjaga aturan "satu kategori = satu budget aktif".
             repository.deleteBudgetByCategoryId(categoryId)
             repository.insertBudget(BudgetEntity(categoryId = categoryId, limitAmount = limitAmount))
         }
@@ -406,12 +420,10 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         viewModelScope.launch {
             repository.resetAllData()
 
-            // Re-seed: satu wallet default "Cash"
             repository.insertAccount(
                 AccountEntity(name = "Cash", initialBalance = 0.0, type = "REGULAR", includeInTotal = true, orderIndex = 0)
             )
 
-            // Re-seed kategori default - INCOME
             repository.insertCategory(CategoryEntity(name = "Salary", type = "INCOME", iconName = "Work", orderIndex = 0))
             repository.insertCategory(CategoryEntity(name = "Bonus", type = "INCOME", iconName = "CardGiftcard", orderIndex = 1))
             repository.insertCategory(CategoryEntity(name = "Investment", type = "INCOME", iconName = "TrendingUp", orderIndex = 2))
@@ -425,7 +437,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
             repository.insertCategory(CategoryEntity(name = "Cashback", type = "INCOME", iconName = "Redeem", orderIndex = 10))
             repository.insertCategory(CategoryEntity(name = "Dividend", type = "INCOME", iconName = "TrendingUp", orderIndex = 11))
 
-            // Re-seed kategori default - EXPENSE
             repository.insertCategory(CategoryEntity(name = "Food", type = "EXPENSE", iconName = "Fastfood", orderIndex = 0))
             repository.insertCategory(CategoryEntity(name = "Transport", type = "EXPENSE", iconName = "DirectionsCar", orderIndex = 1))
             repository.insertCategory(CategoryEntity(name = "Shopping", type = "EXPENSE", iconName = "ShoppingCart", orderIndex = 2))
@@ -450,7 +461,6 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
             repository.insertCategory(CategoryEntity(name = "Laundry", type = "EXPENSE", iconName = "LocalLaundryService", orderIndex = 21))
             repository.insertCategory(CategoryEntity(name = "Parking & Toll", type = "EXPENSE", iconName = "LocalParking", orderIndex = 22))
 
-            // Reset profile ke default
             val prefs = context.getSharedPreferences("money_prefs", Context.MODE_PRIVATE)
             prefs.edit()
                 .putString("user_name", "User")

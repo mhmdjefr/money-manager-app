@@ -27,7 +27,8 @@ abstract class AppDatabase : RoomDatabase() {
                     "money_manager_db"
                 )
                     .addCallback(AppDatabaseCallback())
-                    .fallbackToDestructiveMigration()
+                    .addMigrations(MIGRATION_4_5, MIGRATION_5_6)
+                    .fallbackToDestructiveMigration() // jaring pengaman jika ada versi yang belum tercakup migration
                     .build()
                 INSTANCE = instance
                 instance

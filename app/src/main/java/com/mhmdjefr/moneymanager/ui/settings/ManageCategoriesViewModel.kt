@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 
 class ManageCategoriesViewModel(private val repository: MoneyRepository) : ViewModel() {
     val categories: Flow<List<CategoryEntity>> = repository.getAllCategories()
+    val allBudgets: Flow<List<BudgetEntity>> = repository.getAllBudgets()
 
     fun saveCategory(category: CategoryEntity) {
         viewModelScope.launch(Dispatchers.IO) {
