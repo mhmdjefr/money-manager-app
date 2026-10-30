@@ -211,12 +211,12 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
         }
     }
 
-    // --- IMPORT CSV (Profile + Accounts + Categories + Transactions, anti-duplicate) ---
+    // --- IMPORT CSV (Profile + Accounts + Categories + Transactions, Relasional Fix) ---
     fun importFromCsv(context: Context, uri: Uri, onSuccess: () -> Unit, onError: (Exception) -> Unit) {
-        viewModelScope.launch {
+        viewModelScope.launch(Dispatchers.IO) {
             try {
                 val inputStream = context.contentResolver.openInputStream(uri)
-                val reader = BufferedReader(InputStreamReader(inputStream))
+                val reader = java.io.BufferedReader(java.io.InputStreamReader(inputStream))
                 val lines = reader.readLines()
 
                 val sections = mutableMapOf<String, MutableList<String>>()
@@ -247,12 +247,16 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     }
                 }
 
+                // 1. SIAPKAN KAMUS PETA RELASI ID
+                val accountIdMap = mutableMapOf<Int, Int>()
+
                 sections["ACCOUNTS"]?.let { rows ->
                     val existingAccounts = repository.getAllAccounts().first()
 
                     for (i in 1 until rows.size) {
                         val row = parseCsvLine(rows[i])
                         if (row.size >= 6) {
+                            val oldId = row[0].toIntOrNull() ?: continue
                             val name = row[1]
                             val initialBalance = row[2].toDoubleOrNull() ?: 0.0
                             val type = row[3]
@@ -268,10 +272,11 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                                         orderIndex = orderIndex
                                     )
                                 )
+                                accountIdMap[oldId] = existing.id
                             } else {
                                 repository.insertAccount(
                                     AccountEntity(
-                                        id = 0,
+                                        id = oldId, // Pakai ID asli dari CSV
                                         name = name,
                                         initialBalance = initialBalance,
                                         type = type,
@@ -279,6 +284,7 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                                         orderIndex = orderIndex
                                     )
                                 )
+                                accountIdMap[oldId] = oldId
                             }
                         }
                     }
@@ -316,25 +322,31 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     for (i in 1 until rows.size) {
                         val row = parseCsvLine(rows[i])
                         if (row.size >= 5) {
-                            val accountId = row[1].toIntOrNull() ?: continue
+                            val oldAccountId = row[1].toIntOrNull() ?: continue
+                            
+                            // 2. TRANSLASIKAN ID LAMA KE ID BARU
+                            val mappedAccountId = accountIdMap[oldAccountId] ?: oldAccountId
+                            
                             val amount = row[2].toDoubleOrNull() ?: 0.0
                             val type = row[3]
-                            val date = row[4].toLongOrNull() ?: Calendar.getInstance().timeInMillis
+                            val date = row[4].toLongOrNull() ?: java.util.Calendar.getInstance().timeInMillis
                             val note = row.getOrNull(5) ?: ""
-                            val targetAccountId = row.getOrNull(6)?.toIntOrNull()
+                            
+                            val oldTargetId = row.getOrNull(6)?.toIntOrNull()
+                            val mappedTargetId = if (oldTargetId != null) accountIdMap[oldTargetId] ?: oldTargetId else null
 
-                            val signature = "${accountId}_${amount}_${type}_${date}_${note}"
+                            val signature = "${mappedAccountId}_${amount}_${type}_${date}_${note}"
 
                             if (!existingSignatures.contains(signature)) {
                                 repository.insertTransaction(
                                     TransactionEntity(
                                         id = 0,
-                                        accountId = accountId,
+                                        accountId = mappedAccountId, // Pakai ID yang sudah ditranslasi
                                         amount = amount,
                                         type = type,
                                         date = date,
                                         note = note,
-                                        targetAccountId = targetAccountId
+                                        targetAccountId = mappedTargetId
                                     )
                                 )
                             }
@@ -342,9 +354,9 @@ class DashboardViewModel(private val repository: MoneyRepository) : ViewModel() 
                     }
                 }
 
-                onSuccess()
+                withContext(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
-                onError(e)
+                withContext(Dispatchers.Main) { onError(e) }
             }
         }
     }
